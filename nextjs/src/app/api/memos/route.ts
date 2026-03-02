@@ -1,39 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { MemoStore } from '@/lib/data';
-import { CreateMemoRequest } from '@/types/memo';
+import { NextRequest, NextResponse } from "next/server";
+import { createMemoSchema } from "@/lib/validations/memo";
+import { createMemoForUser, listMemosByUser } from "@/features/memos/server/memo-service";
+import { requireUserId } from "@/lib/server-session";
 
-// GET /api/memos - 获取所有备忘录
 export async function GET() {
   try {
-    const memos = await MemoStore.getAllMemos();
+    const userId = await requireUserId();
+    if (!userId)
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+
+    const memos = await listMemosByUser(userId);
     return NextResponse.json(memos);
-  } catch (error) {
-    return NextResponse.json(
-      { error: '获取备忘录失败' },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ error: "获取备忘录失败" }, { status: 500 });
   }
 }
 
-// POST /api/memos - 创建新备忘录
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateMemoRequest = await request.json();
-    
-    // 验证必填字段
-    if (!body.title || !body.content) {
-      return NextResponse.json(
-        { error: '标题和内容不能为空' },
-        { status: 400 }
-      );
-    }
+    const userId = await requireUserId();
+    if (!userId)
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
 
-    const newMemo = await MemoStore.createMemo(body);
+    const body = await request.json();
+    const parsed = createMemoSchema.safeParse(body);
+    if (!parsed.success)
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+    const newMemo = await createMemoForUser(userId, parsed.data);
     return NextResponse.json(newMemo, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: '创建备忘录失败' },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ error: "创建备忘录失败" }, { status: 500 });
   }
 }

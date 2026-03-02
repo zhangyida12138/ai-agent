@@ -1,56 +1,26 @@
-import antfu from '@antfu/eslint-config'
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { FlatCompat } from "@eslint/eslintrc";
 
-export default antfu({
-  formatters: {
-    css: true,
-    html: true,
-  },
-  typescript: true,
-  vue: true,
-  unocss: true,
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-  jsonc: true,
-  yaml: true,
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
 
-  // `.eslintignore` is no longer supported in Flat config, use `ignores` instead
-  ignores: [
-    '**/node_modules/**',
-    'src/components/VxeTable/components/**',
-    '.vscode/**',
-    '.idea/**',
-    'dist/**',
-    'public/**',
-    '.husky/**',
-    'Dockerfile',
-    'stats.html',
-  ],
-}, {
-  rules: {
-    'vue/block-order': ['error', {
-      order: [['script', 'template'], 'style'],
-    }],
-    'no-console': 'off',
-    'antfu/top-level-function': 'off',
-    'prefer-promise-reject-errors': 'off',
-    // 除强制重新排序元素情况外，一般不要求key
-    'vue/valid-v-for': 'off',
-    'vue/require-v-for-key': 'off',
-    'vue/component-name-in-template-casing': [
-      'error',
-      'kebab-case',
-      {
-        registeredComponentsOnly: false,
-        ignores: [
-          '/^Tres/',
-          'CameraControls',
-          'OrbitControls',
-          'Suspense',
-          'Transition',
-          'Teleport',
-          'TransitionGroup',
-          'Text3D',
-        ],
-      },
+const config = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    ignores: [
+      ".next/**",
+      "next-env.d.ts",
+      "node_modules/**",
+      "public/**",
+      "dist/**",
+      "build/**",
     ],
   },
-})
+];
+
+export default config;

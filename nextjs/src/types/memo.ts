@@ -1,20 +1,20 @@
+export type MemoPriority = "low" | "medium" | "high";
+
 export interface Memo {
   id: string;
   title: string;
   content: string;
-  createdAt: Date;
-  updatedAt: Date;
-  tags?: string[];
-  priority: 'low' | 'medium' | 'high';
+  tags: string[];
+  priority: MemoPriority;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateMemoRequest {
   title: string;
   content: string;
   tags?: string[];
-  priority: 'low' | 'medium' | 'high';
+  priority: MemoPriority;
 }
 
-export interface UpdateMemoRequest extends Partial<CreateMemoRequest> {
-  id: string;
-}
+export type UpdateMemoRequest = Partial<CreateMemoRequest>;
