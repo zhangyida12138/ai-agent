@@ -1,0 +1,31 @@
+{
+  "name": "@ai-agent/sidecar",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "predev": "pnpm --filter @ai-agent/shared build",
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"(skip)\""
+  },
+  "dependencies": {
+    "@ai-agent/shared": "workspace:*",
+    "@nestjs/common": "*",
+    "@nestjs/core": "*",
+    "@nestjs/platform-express": "*",
+    "reflect-metadata": "*",
+    "sql.js": "*",
+    "rxjs": "*"
+  },
+  "devDependencies": {
+    "@types/express": "*",
+    "@types/node": "*",
+    "tsx": "*",
+    "typescript": "*"
+  }
+}
+
