@@ -77,10 +77,101 @@ export class AIProviderRouter {
       };
     }
 
-    // For MVP: implement only mock provider now.
+    if (kind === 'deepseek' || kind.startsWith('deepseek-')) {
+      const apiKey = process.env.DEEPSEEK_API_KEY;
+      if (!apiKey) {
+        throw {
+          code: ErrorCodes.AUTH_FAILED,
+          message: 'DEEPSEEK_API_KEY is required (see root .env)',
+          retryable: false
+        };
+      }
+
+      const baseUrl = (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/$/, '');
+      const model = String(req.modelId || process.env.DEEPSEEK_MODEL || 'deepseek-chat');
+
+      const messages = req.input.messages ?? [];
+      const temperature = req.generation?.temperature;
+      const topP = req.generation?.topP;
+      const maxTokens = req.generation?.maxTokens;
+
+      const payload: any = {
+        model,
+        messages,
+        stream: false
+      };
+      if (typeof temperature === 'number') payload.temperature = temperature;
+      if (typeof topP === 'number') payload.top_p = topP;
+      if (typeof maxTokens === 'number') payload.max_tokens = maxTokens;
+
+      const url = `${baseUrl}/chat/completions`;
+      let raw: string;
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        raw = await resp.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          // Keep data null; we'll use raw for message fallback.
+        }
+
+        if (!resp.ok) {
+          const errMsg =
+            data?.error?.message ??
+            data?.message ??
+            raw ??
+            `DeepSeek request failed with HTTP ${resp.status}`;
+
+          // Keep as a non-narrowed type; we assign different ErrorCodes based on HTTP status.
+          let code: string = ErrorCodes.INTERNAL_PROVIDER_ERROR;
+          if (resp.status === 401 || resp.status === 403) code = ErrorCodes.AUTH_FAILED;
+          else if (resp.status === 429) code = ErrorCodes.RATE_LIMITED;
+          else if (resp.status === 413) code = ErrorCodes.REQUEST_TOO_LARGE;
+          else if (resp.status >= 500) code = ErrorCodes.PROVIDER_UNAVAILABLE;
+
+          throw {
+            code,
+            message: errMsg,
+            retryable: resp.status >= 500 || resp.status === 429
+          };
+        }
+
+        const content = String(data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '');
+        const usage = data?.usage;
+
+        return {
+          text: content,
+          usage: usage
+            ? {
+                promptTokens: Number(usage.prompt_tokens ?? 0),
+                completionTokens: Number(usage.completion_tokens ?? 0),
+                totalTokens: Number(usage.total_tokens ?? 0)
+              }
+            : undefined
+        };
+      } catch (e: any) {
+        if (e?.code) throw e; // preserve our structured errors
+
+        throw {
+          code: ErrorCodes.PROVIDER_UNAVAILABLE,
+          message: `DeepSeek provider call failed: ${e?.message ? String(e.message) : String(e)}`,
+          retryable: true
+        };
+      }
+    }
+
     return Promise.reject({
       code: ErrorCodes.PROVIDER_NOT_CONFIGURED,
-      message: `Provider kind "${kind}" is not implemented in MVP (use mock).`
+      message: `Provider kind "${kind}" is not implemented (supported: mock, deepseek).`
     });
   }
 }

@@ -109,9 +109,30 @@ export class ChatHistoryStore {
   }
 
   private tokenize(text: string): string[] {
-    // Use unicode-aware tokenization so Chinese characters are included.
-    // This MVP uses coarse tokens (no NLP segmentation), but must support CJK queries.
-    return (text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? []).filter((t) => t.length > 1);
+    // Tokenization for MVP retrieval:
+    // - Latin/digits tokens: `[a-z0-9_]+`
+    // - CJK tokens: generate overlapping bigrams from contiguous CJK ranges.
+    // Note: We intentionally avoid `\p{L}` style unicode property escapes because
+    // in some Node builds it may not match Han characters as expected.
+    const normalized = text.toLowerCase();
+    const tokens: string[] = [];
+
+    // Latin-ish tokens
+    for (const t of normalized.match(/[a-z0-9_]+/g) ?? []) {
+      if (t.length > 1) tokens.push(t);
+    }
+
+    // CJK bigrams
+    const cjkBlocks = normalized.match(/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+/g) ?? [];
+    for (const block of cjkBlocks) {
+      if (block.length < 2) continue;
+      for (let i = 0; i < block.length - 1; i++) {
+        const token = block.slice(i, i + 2);
+        if (token.trim().length > 0) tokens.push(token);
+      }
+    }
+
+    return tokens;
   }
 
   private chunkText(text: string, options?: IngestTextRequest['options']) {
@@ -271,30 +292,25 @@ export class ChatHistoryStore {
     const qTokens = this.tokenize(query);
     if (qTokens.length === 0) return [];
 
-    const candidateLimit = Math.max(20, topK * 50);
+    const qSet = new Set(qTokens);
 
-    // Prefilter by multiple tokens to reduce empty-result cases caused by chunk boundaries.
-    let rows: any[] = [];
-    for (const token of qTokens.slice(0, 5)) {
-      rows = this.queryAll<any>(
-        `SELECT
-          c.id AS chunk_id,
-          c.document_id AS doc_id,
-          c.chunk_index AS chunk_index,
-          c.text_content AS text_content,
-          d.source_path AS doc_source_path
-        FROM document_chunks c
-        JOIN documents d ON d.id = c.document_id
-        WHERE lower(c.text_content) LIKE '%' || ? || '%'
-        LIMIT ?`,
-        [token, candidateLimit]
-      );
-      if (rows.length > 0) break;
-    }
+    // For MVP reliability: avoid relying solely on SQL LIKE prefilter.
+    // We scan a bounded number of chunks and score by token overlap.
+    const scanLimit = Math.max(200, topK * 500);
+    const rows = this.queryAll<any>(
+      `SELECT
+        c.id AS chunk_id,
+        c.document_id AS doc_id,
+        c.chunk_index AS chunk_index,
+        c.text_content AS text_content,
+        d.source_path AS doc_source_path
+      FROM document_chunks c
+      JOIN documents d ON d.id = c.document_id
+      LIMIT ?`,
+      [scanLimit]
+    );
 
     if (rows.length === 0) return [];
-
-    const qSet = new Set(qTokens);
 
     const scored = rows.map((r) => {
       const chunkTokens = this.tokenize(r.text_content);

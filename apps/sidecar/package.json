@@ -17,9 +17,10 @@
     "@nestjs/common": "*",
     "@nestjs/core": "*",
     "@nestjs/platform-express": "*",
+    "dotenv": "^17.4.0",
     "reflect-metadata": "*",
-    "sql.js": "*",
-    "rxjs": "*"
+    "rxjs": "*",
+    "sql.js": "*"
   },
   "devDependencies": {
     "@types/express": "*",
@@ -28,4 +29,3 @@
     "typescript": "*"
   }
 }
-
