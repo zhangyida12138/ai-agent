@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../modules/auth/auth';
+import styles from './auth-page.module.css';
 
 export function AuthPage() {
   const { loginByPassword, registerByPassword, error, clearError } = useAuth();
@@ -9,10 +10,10 @@ export function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   return (
-    <div className="wx-shell">
-      <div className="auth-card">
-        <h1>AI 助手</h1>
-        <p>登录后访问聊天与知识库</p>
+    <div className={styles.shell}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>AI 助手</h1>
+        <p className={styles.subtitle}>登录后访问聊天与知识库</p>
         <input className="wx-input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="用户名" disabled={loading} />
         <input className="wx-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="密码（至少6位）" type="password" disabled={loading} />
         <button

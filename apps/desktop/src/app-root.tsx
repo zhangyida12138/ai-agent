@@ -15,7 +15,7 @@ function AppRoutes() {
     if (user && path !== '/chat' && path !== '/knowledge') navigate('/chat', true);
   }, [loading, navigate, path, user]);
 
-  if (loading) return <div className="wx-shell"><div className="auth-card">正在检查登录态...</div></div>;
+  if (loading) return <div className="app-shell"><div style={{ margin: 'auto' }}>正在检查登录态...</div></div>;
   if (!user) return <AuthPage />;
   return <AppLayout />;
 }

@@ -1,0 +1,33 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+  padding: 14px;
+  background: radial-gradient(circle at 15% 20%, #0f1933 0%, #0a0f1d 45%, #070b16 100%);
+}
+
+:global(:root[data-theme='light']) .shell {
+  background: radial-gradient(circle at 15% 20%, #ffffff 0%, #eaf2ff 55%, #dce9ff 100%);
+}
+
+.card {
+  width: 360px;
+  margin: auto;
+  border: 1px solid var(--panel-border-soft);
+  border-radius: 18px;
+  background: var(--glass);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  color: var(--neon-blue);
+  text-shadow: var(--glow-shadow);
+}
+
+.subtitle {
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+}

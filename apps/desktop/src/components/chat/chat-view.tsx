@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ChatMessage } from '../../modules/chat/use-chat-module';
+import styles from '../../pages/app-layout.module.css';
 
 function roleLabel(role: ChatMessage['role']) {
   if (role === 'user') return '用户';
@@ -33,28 +34,32 @@ export function ChatView(props: {
   messages: ChatMessage[];
   input: string;
   loading: boolean;
+  toast?: string;
   onInput: (v: string) => void;
   onSend: () => void;
   onCopyToast: (text: string) => void;
 }) {
-  const { title, messages, input, loading, onInput, onSend, onCopyToast } = props;
+  const { title, messages, input, loading, toast, onInput, onSend, onCopyToast } = props;
   return (
     <>
-      <div className="chat-title">{title}</div>
-      <div className="message-panel">
+      <div className={styles.chatTitle}>{title}</div>
+      <div className={styles.messagePanel}>
+        {toast ? <div className={styles.copyToast}>{toast}</div> : null}
         {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
         {messages.map((m) => (
-          <div key={m.id} className={`msg ${m.role === 'user' ? 'user' : 'assistant'}`}>
-            <div className="role">{roleLabel(m.role)} · {new Date(m.createdAt).toLocaleString()}</div>
-            <div className="bubble">{m.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} /> : m.content}</div>
-            <button className="copy-msg-btn" onClick={async () => { await navigator.clipboard.writeText(m.content || ''); onCopyToast('复制成功'); }}>复制</button>
+          <div key={m.id} className={styles.msg}>
+            <div className={styles.role}>{roleLabel(m.role)} · {new Date(m.createdAt).toLocaleString()}</div>
+            <div className={`${styles.bubble} ${m.role === 'assistant' ? styles.assistantBubble : styles.userBubble}`}>
+              {m.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} /> : m.content}
+            </div>
+            <button className={styles.copyMsgBtn} onClick={async () => { await navigator.clipboard.writeText(m.content || ''); onCopyToast('复制成功'); }}>复制</button>
             {m.role === 'assistant' && m.citations && m.citations.length > 0 ? (
-              <div className="citation-box">
-                <div className="citation-title">引用</div>
+              <div className={styles.citationBox}>
+                <div className={styles.citationTitle}>引用</div>
                 {m.citations.map((c) => (
                   <div key={c.refId}>
-                    <div className="citation-label">{c.label}</div>
-                    <div className="citation-snippet">{c.snippet}</div>
+                    <div className={styles.citationLabel}>{c.label}</div>
+                    <div className={styles.citationSnippet}>{c.snippet}</div>
                   </div>
                 ))}
               </div>
@@ -62,7 +67,7 @@ export function ChatView(props: {
           </div>
         ))}
       </div>
-      <div className="composer">
+      <div className={styles.composer}>
         <textarea
           className="wx-input"
           value={input}

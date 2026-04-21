@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Conversation } from '../../modules/chat/use-chat-module';
+import styles from '../../pages/app-layout.module.css';
 
 export function ConversationSidebar(props: {
   userName: string;
@@ -18,6 +19,9 @@ export function ConversationSidebar(props: {
   onRenameBlur: (id: string) => Promise<void>;
   onRenameCancel: () => void;
   error?: string | null;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
+  onToggleCollapse: () => void;
 }) {
   const {
     userName,
@@ -34,26 +38,35 @@ export function ConversationSidebar(props: {
     setRenamingTitle,
     onRenameBlur,
     onRenameCancel,
-    error
+    error,
+    theme,
+    onToggleTheme,
+    onToggleCollapse
   } = props;
   return (
-    <div className="wx-sidebar">
-      <div className="sidebar-header">
+    <div className={styles.sidebar}>
+      <div className={styles.sidebarHeader}>
         <button className="wx-btn primary" onClick={onNew}>新建会话</button>
-        <div className="user-badge">{userName}</div>
+        <button className={`wx-btn ghost ${styles.collapseBtn}`} onClick={onToggleCollapse} title="收起侧栏">
+          <span aria-hidden>◀</span>
+        </button>
+        <button className={`wx-btn ghost ${styles.themeToggle}`} onClick={onToggleTheme}>
+          {theme === 'dark' ? '浅色' : '深色'}
+        </button>
+        <div className={styles.userBadge}>{userName}</div>
       </div>
-      <div className="conversation-list">
+      <div className={styles.conversationList}>
         {conversations.map((c) => (
-          <div key={c.id} className={`conversation-item-wrap ${activeId === c.id ? 'active' : ''}`}>
+          <div key={c.id} className={styles.conversationItemWrap}>
             <button
-              className={`conversation-item ${activeId === c.id ? 'active' : ''}`}
+              className={`${styles.conversationItem} ${activeId === c.id ? styles.conversationItemActive : ''}`}
               onClick={() => (renamingId === c.id ? undefined : onSelect(c.id))}
               onContextMenu={(e) => onContextMenu(e, c.id)}
             >
               {renamingId === c.id ? (
                 <input
                   autoFocus
-                  className="conversation-rename-input"
+                  className={styles.conversationRenameInput}
                   value={renamingTitle}
                   onChange={(e) => setRenamingTitle(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
@@ -66,13 +79,13 @@ export function ConversationSidebar(props: {
               ) : (
                 <div>{c.title || '会话'}</div>
               )}
-              <small>{new Date(c.updatedAt).toLocaleString()}</small>
+              <small className={styles.conversationMeta}>{new Date(c.updatedAt).toLocaleString()}</small>
             </button>
           </div>
         ))}
       </div>
-      <button className={`wx-btn ghost ${tab === 'chat' ? 'active-tab' : ''}`} onClick={() => onTab('chat')}>聊天</button>
-      <button className={`wx-btn ghost ${tab === 'knowledge' ? 'active-tab' : ''}`} onClick={() => onTab('knowledge')}>知识库管理</button>
+      <button className={`wx-btn ${tab === 'chat' ? `primary ${styles.activeTab}` : 'ghost'}`} onClick={() => onTab('chat')}>聊天</button>
+      <button className={`wx-btn ${tab === 'knowledge' ? `primary ${styles.activeTab}` : 'ghost'}`} onClick={() => onTab('knowledge')}>知识库管理</button>
       <button className="wx-btn ghost" onClick={onLogout}>退出登录</button>
       {error ? <div className="error-tip">{error}</div> : null}
     </div>
