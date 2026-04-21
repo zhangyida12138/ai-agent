@@ -1,6 +1,8 @@
 import React from 'react';
+import { useEffect, useRef } from 'react';
 import type { ChatMessage } from '../../modules/chat/use-chat-module';
 import styles from '../../pages/app-layout.module.css';
+import { formatDisplayDateTime } from '../../utils/datetime';
 
 function roleLabel(role: ChatMessage['role']) {
   if (role === 'user') return '用户';
@@ -37,18 +39,25 @@ export function ChatView(props: {
   toast?: string;
   onInput: (v: string) => void;
   onSend: () => void;
+  onStop: () => void;
   onCopyToast: (text: string) => void;
 }) {
-  const { title, messages, input, loading, toast, onInput, onSend, onCopyToast } = props;
+  const { title, messages, input, loading, toast, onInput, onSend, onStop, onCopyToast } = props;
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, loading]);
   return (
     <>
       <div className={styles.chatTitle}>{title}</div>
-      <div className={styles.messagePanel}>
+      <div ref={panelRef} className={styles.messagePanel}>
         {toast ? <div className={styles.copyToast}>{toast}</div> : null}
         {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
         {messages.map((m) => (
-          <div key={m.id} className={styles.msg}>
-            <div className={styles.role}>{roleLabel(m.role)} · {new Date(m.createdAt).toLocaleString()}</div>
+          <div key={m.id} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : ''}`}>
+            <div className={styles.role}>{roleLabel(m.role)} · {formatDisplayDateTime(m.createdAt)}</div>
             <div className={`${styles.bubble} ${m.role === 'assistant' ? styles.assistantBubble : styles.userBubble}`}>
               {m.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} /> : m.content}
             </div>
@@ -62,6 +71,11 @@ export function ChatView(props: {
                     <div className={styles.citationSnippet}>{c.snippet}</div>
                   </div>
                 ))}
+              </div>
+            ) : null}
+            {m.role === 'assistant' && m.ragDebug ? (
+              <div className={styles.debugBox}>
+                调试：RAG={m.ragDebug.useLocalKnowledge ? 'on' : 'off'}，选中文档={m.ragDebug.selectedDocCount}，候选={m.ragDebug.candidateCount}，过滤后={m.ragDebug.filteredCount}，最终证据={m.ragDebug.evidenceCount}
               </div>
             ) : null}
           </div>
@@ -82,8 +96,8 @@ export function ChatView(props: {
           placeholder="输入消息...（Enter发送，Shift+Enter换行）"
           disabled={loading}
         />
-        <button className="wx-btn primary" onClick={onSend} disabled={loading || !input.trim()}>
-          {loading ? '生成中...' : '发送'}
+        <button className={`wx-btn primary ${styles.sendBtn}`} onClick={loading ? onStop : onSend} disabled={!loading && !input.trim()}>
+          {loading ? '中断生成' : '发送'}
         </button>
       </div>
     </>

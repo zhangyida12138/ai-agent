@@ -65,7 +65,7 @@ export class KnowledgeController {
     const user = await this.requireUser(authHeader);
     if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
     const store = await this.storePromise;
-    return ok(await store.getKnowledgeStats());
+    return ok(await store.getKnowledgeStats(user.id));
   }
 
   @Post('/knowledge/retrieve')

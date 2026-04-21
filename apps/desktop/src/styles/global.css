@@ -26,6 +26,56 @@
   --panel-bg: rgba(255, 255, 255, 0.92);
 }
 
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 229, 255, 0.68) rgba(10, 18, 34, 0.62);
+}
+
+:root[data-theme='light'] html {
+  scrollbar-color: #8eb0ff rgba(228, 236, 252, 0.92);
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(7, 14, 28, 0.86), rgba(11, 23, 42, 0.7));
+  border-radius: 999px;
+  border: 1px solid rgba(0, 229, 255, 0.14);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.88), rgba(0, 170, 255, 0.68));
+  border-radius: 999px;
+  border: 1px solid rgba(180, 248, 255, 0.4);
+  box-shadow: inset 0 0 6px rgba(210, 250, 255, 0.34), 0 0 8px rgba(0, 229, 255, 0.25);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(76, 245, 255, 0.96), rgba(0, 193, 255, 0.78));
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:root[data-theme='light'] *::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #edf3ff, #e5eeff);
+  border-color: #dbe5fa;
+}
+
+:root[data-theme='light'] *::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #8eb0ff, #6f96ff);
+  border-color: #d5e1ff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+:root[data-theme='light'] *::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7ea5ff, #5f88ff);
+}
+
 * {
   box-sizing: border-box;
 }

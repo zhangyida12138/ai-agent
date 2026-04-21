@@ -26,6 +26,8 @@ export type SendChatRequest = {
   options?: {
     language?: string;
     useLocalKnowledge?: boolean;
+    selectedDocIds?: string[];
+    debugRag?: boolean;
     includeCitations?: boolean;
     maxReplyChars?: number;
     retrievalTopK?: number;
@@ -45,6 +47,13 @@ export type SendChatResponse = {
   persisted: {
     conversationId: string;
     assistantMessageId: string;
+  };
+  debug?: {
+    useLocalKnowledge: boolean;
+    selectedDocCount: number;
+    candidateCount: number;
+    filteredCount: number;
+    evidenceCount: number;
   };
 };
 
@@ -101,5 +110,32 @@ export type IngestTextResponse = {
     overlap: number;
     chunks: number;
   };
+};
+
+export type ExportConversationsRequest = {
+  conversationIds?: string[];
+};
+
+export type ConversationExportBundle = {
+  version: 1;
+  exportedAt: string;
+  conversations: Array<{
+    id: string;
+    title: string | null;
+    createdAt: string;
+    updatedAt: string;
+    messages: ChatMessage[];
+  }>;
+};
+
+export type ExportConversationsResponse = ConversationExportBundle;
+
+export type ImportConversationsRequest = {
+  payload: ConversationExportBundle;
+};
+
+export type ImportConversationsResponse = {
+  importedConversations: number;
+  importedMessages: number;
 };
 

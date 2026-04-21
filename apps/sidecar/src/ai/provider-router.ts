@@ -28,7 +28,8 @@ export class AIProviderRouter {
   private async callDeepSeek(
     req: ProviderRequest,
     stream: boolean,
-    onDelta?: (delta: string) => void
+    onDelta?: (delta: string) => void,
+    options?: { signal?: AbortSignal; shouldStop?: () => boolean }
   ): Promise<ProviderTextResponse> {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
@@ -51,13 +52,15 @@ export class AIProviderRouter {
     if (typeof maxTokens === 'number') payload.max_tokens = maxTokens;
 
     const url = `${baseUrl}/chat/completions`;
+    const shouldStop = options?.shouldStop;
     const resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: options?.signal
     });
 
     if (!resp.ok) {
@@ -106,6 +109,14 @@ export class AIProviderRouter {
     let buffer = '';
     let text = '';
     while (true) {
+      if (shouldStop?.()) {
+        throw {
+          code: 'ABORTED',
+          message: 'Stream aborted by caller',
+          retryable: false,
+          partialText: text
+        };
+      }
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -153,7 +164,11 @@ export class AIProviderRouter {
     });
   }
 
-  async generateTextStream(req: ProviderRequest, onDelta: (delta: string) => void): Promise<ProviderTextResponse> {
+  async generateTextStream(
+    req: ProviderRequest,
+    onDelta: (delta: string) => void,
+    options?: { signal?: AbortSignal; shouldStop?: () => boolean }
+  ): Promise<ProviderTextResponse> {
     const kind = (req.providerKind || process.env.AI_PROVIDER_KIND || 'deepseek').toLowerCase();
     if (!(kind === 'deepseek' || kind.startsWith('deepseek-'))) {
       throw {
@@ -163,8 +178,16 @@ export class AIProviderRouter {
       };
     }
     try {
-      return await this.callDeepSeek(req, true, onDelta);
+      return await this.callDeepSeek(req, true, onDelta, options);
     } catch (e: any) {
+      if (e?.name === 'AbortError' || e?.code === 'ABORTED') {
+        throw {
+          code: 'ABORTED',
+          message: 'generation aborted',
+          retryable: false,
+          partialText: String(e?.partialText ?? '')
+        };
+      }
       if (e?.code) throw e;
       throw {
         code: ErrorCodes.PROVIDER_UNAVAILABLE,

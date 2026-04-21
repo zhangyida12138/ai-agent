@@ -33,8 +33,18 @@ export function AuthPage() {
         <button className="wx-btn ghost" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} disabled={loading}>
           {mode === 'login' ? '没有账号？去注册' : '已有账号？去登录'}
         </button>
-        {error ? <div className="error-tip">{error}</div> : null}
       </div>
+      {error ? (
+        <div className={styles.errorOverlay} onClick={clearError}>
+          <div className={styles.errorDialog} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.errorTitle}>错误</div>
+            <div className={styles.errorText}>{error}</div>
+            <div className={styles.errorActions}>
+              <button className="wx-btn primary" onClick={clearError}>我知道了</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

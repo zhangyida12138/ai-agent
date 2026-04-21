@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { deleteConversation, listConversations, listMessages, renameConversation, streamChat } from '../../api';
+import { deleteConversation, exportConversations, importConversations, listConversations, listMessages, renameConversation, streamChat } from '../../api';
 
 export type Conversation = { id: string; title?: string | null; updatedAt: string };
 export type ChatMessage = {
@@ -8,6 +8,13 @@ export type ChatMessage = {
   role: 'user' | 'assistant' | 'system';
   content: string;
   citations?: Array<{ refId: string; label: string; snippet: string }>;
+  ragDebug?: {
+    useLocalKnowledge: boolean;
+    selectedDocCount: number;
+    candidateCount: number;
+    filteredCount: number;
+    evidenceCount: number;
+  };
   createdAt: string;
 };
 
@@ -24,6 +31,7 @@ export function useChatModule() {
   const typingAssistantIdRef = useRef<string | null>(null);
   const typingDonePayloadRef = useRef<any>(null);
   const typingStreamFinishedRef = useRef(false);
+  const streamAbortRef = useRef<AbortController | null>(null);
   const TYPING_INTERVAL_MS = 18;
   const CHARS_PER_TICK = 2;
 
@@ -47,6 +55,28 @@ export function useChatModule() {
     typingStreamFinishedRef.current = false;
   }
 
+  function stopGenerating() {
+    if (!loading) return;
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+  }
+
+  function flushPendingQueueIntoAssistant() {
+    const assistantId = typingAssistantIdRef.current;
+    if (!assistantId) return;
+    if (typingQueueRef.current.length === 0) return;
+    const remaining = typingQueueRef.current.join('');
+    if (!remaining) return;
+    setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: `${m.content}${remaining}` } : m)));
+    typingQueueRef.current = [];
+  }
+
+  function finalizeAbortedAssistantMessage() {
+    flushPendingQueueIntoAssistant();
+    resetTypingState();
+    setLoading(false);
+  }
+
   function tryFinalizeAssistantMessage() {
     if (!typingStreamFinishedRef.current) return false;
     if (typingQueueRef.current.length > 0) return false;
@@ -56,7 +86,12 @@ export function useChatModule() {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === assistantId
-          ? { ...m, id: donePayload?.persisted?.assistantMessageId ?? assistantId, citations: donePayload?.reply?.citations || [] }
+          ? {
+              ...m,
+              id: donePayload?.persisted?.assistantMessageId ?? assistantId,
+              citations: donePayload?.reply?.citations || [],
+              ragDebug: donePayload?.debug
+            }
           : m
       )
     );
@@ -108,7 +143,7 @@ export function useChatModule() {
     setMessages((resp.data as any).messages || []);
   }
 
-  async function sendMessage(useLocalKnowledge: boolean) {
+  async function sendMessage(useLocalKnowledge: boolean, selectedDocIds?: string[]) {
     const userMessage = input.trim();
     if (!userMessage || loading) return;
     const nowIso = new Date().toISOString();
@@ -139,12 +174,21 @@ export function useChatModule() {
       requestId: crypto.randomUUID(),
       conversationId,
       userMessage,
-      options: { useLocalKnowledge, includeCitations: true, retrievalTopK: 3, maxEvidenceChars: 2000 }
+      options: {
+        useLocalKnowledge,
+        selectedDocIds: (selectedDocIds || []).filter(Boolean),
+        debugRag: true,
+        includeCitations: true,
+        retrievalTopK: 3,
+        maxEvidenceChars: 2000
+      }
     };
     const assistantId = crypto.randomUUID();
     setMessages([...optimistic, { id: assistantId, conversationId, role: 'assistant', content: '', createdAt: nowIso }]);
     resetTypingState();
     typingAssistantIdRef.current = assistantId;
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
     let done = false;
     await streamChat(req, {
       onDelta: (delta) => {
@@ -159,12 +203,21 @@ export function useChatModule() {
         tryFinalizeAssistantMessage();
       },
       onError: (e) => {
+        if (e.code === 'ABORTED') return;
         resetTypingState();
         setLoading(false);
         setError(`${e.code || 'STREAM_ERROR'}: ${e.message || '流式响应失败'}`);
       }
+    }, { signal: controller.signal }).catch((e: any) => {
+      if (e?.name === 'AbortError') return;
+      throw e;
     });
+    streamAbortRef.current = null;
     if (!done) {
+      if (controller.signal.aborted) {
+        finalizeAbortedAssistantMessage();
+        return;
+      }
       resetTypingState();
       setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       setLoading(false);
@@ -193,6 +246,46 @@ export function useChatModule() {
     await refreshConversations();
   }
 
+  async function exportConversationById(conversationId: string): Promise<string | null> {
+    const targetId = String(conversationId || '').trim();
+    if (!targetId) {
+      setError('会话ID无效');
+      return null;
+    }
+    const resp = await exportConversations([targetId]);
+    if (!resp.ok) {
+      setError(`${resp.code}: ${resp.message}`);
+      return null;
+    }
+    return JSON.stringify(resp.data, null, 2);
+  }
+
+  async function exportAllConversationBundles(): Promise<string | null> {
+    const resp = await exportConversations();
+    if (!resp.ok) {
+      setError(`${resp.code}: ${resp.message}`);
+      return null;
+    }
+    return JSON.stringify(resp.data, null, 2);
+  }
+
+  async function importConversationBundle(raw: string): Promise<{ importedConversations: number; importedMessages: number } | null> {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      setError('导入文件不是有效 JSON');
+      return null;
+    }
+    const resp = await importConversations(parsed);
+    if (!resp.ok) {
+      setError(`${resp.code}: ${resp.message}`);
+      return null;
+    }
+    await refreshConversations();
+    return resp.data as { importedConversations: number; importedMessages: number };
+  }
+
   return {
     conversations,
     activeId,
@@ -209,8 +302,12 @@ export function useChatModule() {
     refreshConversations,
     refreshMessages,
     sendMessage,
+    stopGenerating,
     removeConversation,
     renameConv,
+    exportConversationById,
+    exportAllConversationBundles,
+    importConversationBundle,
     newConversation: () => {
       setActiveId('');
       setMessages([]);

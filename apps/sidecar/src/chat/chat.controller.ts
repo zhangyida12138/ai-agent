@@ -5,7 +5,8 @@ import { AIProviderRouter } from '../ai/provider-router';
 import { ChatService } from './chat.service';
 import type { SendChatRequest } from '@ai-agent/shared';
 import type { Response } from 'express';
-import { Res } from '@nestjs/common';
+import type { Request } from 'express';
+import { Req, Res } from '@nestjs/common';
 
 function ok<T>(data: T) {
   return { ok: true as const, code: 'SUCCESS', data };
@@ -90,6 +91,34 @@ export class ChatController {
     return ok({ conversationId, title });
   }
 
+  @Post('/conversations/export')
+  async exportConversations(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    const conversationIds = Array.isArray(body?.conversationIds)
+      ? body.conversationIds.map((x: any) => String(x).trim()).filter(Boolean)
+      : undefined;
+    const store = await ChatHistoryStore.create();
+    const data = await store.exportConversations(user.id, conversationIds);
+    return ok(data);
+  }
+
+  @Post('/conversations/import')
+  async importConversations(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    try {
+      const store = await ChatHistoryStore.create();
+      const imported = await store.importConversations(user.id, body?.payload);
+      return ok(imported);
+    } catch (e: any) {
+      if (String(e?.message) === 'INVALID_IMPORT_PAYLOAD') {
+        return err({ code: 'INVALID_PARAMS', message: '导入数据格式无效', retryable: false });
+      }
+      return err({ code: 'IMPORT_FAILED', message: '导入失败', retryable: true });
+    }
+  }
+
   @Post('/chat/send')
   async sendChat(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
     const user = await this.requireUser(authHeader);
@@ -129,6 +158,7 @@ export class ChatController {
   async streamChat(
     @Headers('authorization') authHeader: string | undefined,
     @Body() body: any,
+    @Req() httpReq: Request,
     @Res() res: Response
   ) {
     const user = await this.requireUser(authHeader);
@@ -150,22 +180,33 @@ export class ChatController {
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
+    let clientClosed = false;
+    httpReq.on('close', () => {
+      clientClosed = true;
+    });
     const writeEvent = (event: string, data: any) => {
+      if (clientClosed) return;
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
     try {
       writeEvent('start', { requestId, conversationId });
-      const data = await this.chatService.sendMessageStream(req, (delta) => writeEvent('delta', { delta }));
-      writeEvent('done', data);
-      res.end();
+      const data = await this.chatService.sendMessageStream(req, (delta) => writeEvent('delta', { delta }), () => clientClosed);
+      if (!clientClosed) {
+        writeEvent('done', data);
+        res.end();
+      }
     } catch (e: any) {
+      if (String(e?.code) === 'ABORTED') {
+        if (!clientClosed) res.end();
+        return;
+      }
       writeEvent('error', {
         code: e?.code ? String(e.code) : 'INTERNAL_PROVIDER_ERROR',
         message: e?.message ? String(e.message) : 'Failed to stream reply',
         retryable: Boolean(e?.retryable ?? true)
       });
-      res.end();
+      if (!clientClosed) res.end();
     }
   }
 }

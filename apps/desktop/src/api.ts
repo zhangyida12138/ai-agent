@@ -34,6 +34,20 @@ export async function renameConversation(conversationId: string, title: string) 
   });
 }
 
+export async function exportConversations(conversationIds?: string[]) {
+  return request<any>('/conversations/export', {
+    method: 'POST',
+    body: JSON.stringify({ conversationIds: (conversationIds || []).filter(Boolean) })
+  });
+}
+
+export async function importConversations(payload: any) {
+  return request<any>('/conversations/import', {
+    method: 'POST',
+    body: JSON.stringify({ payload })
+  });
+}
+
 export async function sendChat(payload: any) {
   return request<any>(`/chat/send`, { method: 'POST', body: JSON.stringify(payload) });
 }
@@ -44,14 +58,16 @@ export async function streamChat(
     onDelta: (delta: string) => void;
     onDone: (data: any) => void;
     onError: (err: { code?: string; message?: string }) => void;
-  }
+  },
+  options?: { signal?: AbortSignal }
 ) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${SIDECAR_URL}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: options?.signal
   });
   if (!res.ok || !res.body) {
     handlers.onError({ code: 'STREAM_START_FAILED', message: `流式请求失败: HTTP ${res.status}` });
@@ -125,6 +141,22 @@ export async function login(payload: { username: string; password: string }) {
 
 export async function me() {
   return request<any>('/auth/me', { method: 'GET' });
+}
+
+export async function updateTheme(theme: 'dark' | 'light') {
+  return request<any>('/auth/theme', { method: 'PATCH', body: JSON.stringify({ theme }) });
+}
+
+export async function updateProfile(payload: {
+  displayName?: string | null;
+  age?: number | null;
+  gender?: string | null;
+  occupation?: string | null;
+  needs?: string | null;
+  avatarData?: string | null;
+  customFields?: Array<{ key: string; value: string }>;
+}) {
+  return request<any>('/auth/profile', { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 export function setAuthToken(token: string) {

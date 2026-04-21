@@ -1,13 +1,33 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { clearAuthToken, login, me, register, setAuthToken } from '../../api';
+import { clearAuthToken, login, me, register, setAuthToken, updateProfile } from '../../api';
 
-type User = { id: string; username: string };
+type User = {
+  id: string;
+  username: string;
+  theme?: 'dark' | 'light';
+  displayName?: string | null;
+  age?: number | null;
+  gender?: string | null;
+  occupation?: string | null;
+  needs?: string | null;
+  avatarData?: string | null;
+  customFields?: Array<{ key: string; value: string }>;
+};
 type AuthCtx = {
   user: User | null;
   loading: boolean;
   error: string | null;
   loginByPassword: (username: string, password: string) => Promise<boolean>;
   registerByPassword: (username: string, password: string) => Promise<boolean>;
+  updateUserProfile: (payload: {
+    displayName?: string | null;
+    age?: number | null;
+    gender?: string | null;
+    occupation?: string | null;
+    needs?: string | null;
+    avatarData?: string | null;
+    customFields?: Array<{ key: string; value: string }>;
+  }) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
 };
@@ -52,6 +72,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
         setAuthToken(resp.data.token);
+        setUser(resp.data.user);
+        return true;
+      },
+      updateUserProfile: async (payload) => {
+        setError(null);
+        const resp = await updateProfile(payload);
+        if (!resp.ok) {
+          setError(`${resp.code}: ${resp.message}`);
+          return false;
+        }
         setUser(resp.data.user);
         return true;
       },

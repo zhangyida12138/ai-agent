@@ -12,7 +12,7 @@ function AppRoutes() {
     if (loading) return;
     if (!user && path !== '/auth') navigate('/auth', true);
     if (user && path === '/auth') navigate('/chat', true);
-    if (user && path !== '/chat' && path !== '/knowledge') navigate('/chat', true);
+    if (user && path !== '/chat' && path !== '/knowledge' && path !== '/settings') navigate('/chat', true);
   }, [loading, navigate, path, user]);
 
   if (loading) return <div className="app-shell"><div style={{ margin: 'auto' }}>正在检查登录态...</div></div>;

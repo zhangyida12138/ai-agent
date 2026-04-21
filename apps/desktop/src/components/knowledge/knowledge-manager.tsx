@@ -1,6 +1,7 @@
 import React from 'react';
 import type { KnowledgeDocument } from '../../modules/knowledge/use-knowledge-module';
 import styles from '../../pages/app-layout.module.css';
+import { formatDisplayDateTime } from '../../utils/datetime';
 
 export function KnowledgeManager(props: {
   docs: KnowledgeDocument[];
@@ -40,7 +41,7 @@ export function KnowledgeManager(props: {
             onClick={() => onOpenDoc(d.id)}
           >
             <div>{d.title || '未命名文档'}</div>
-            <small className={styles.conversationMeta}>{d.chunkCount} 块 · {new Date(d.updatedAt).toLocaleString()}</small>
+            <small className={styles.conversationMeta}>{d.chunkCount} 块 · {formatDisplayDateTime(d.updatedAt)}</small>
           </button>
         ))}
       </div>

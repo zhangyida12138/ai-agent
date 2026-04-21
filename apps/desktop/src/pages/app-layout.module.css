@@ -23,9 +23,47 @@
   border-radius: 14px;
   background: var(--glass);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding-top: 10px;
+  padding-bottom: 10px;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.collapsedConversationList {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  overflow: auto;
+  padding-top: 2px;
+}
+
+.collapsedConversationBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border-soft);
+  background: rgba(11, 19, 35, 0.6);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collapsedConversationBtn:hover {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+}
+
+.collapsedConversationBtnActive {
+  border-color: var(--neon-blue);
+  background: rgba(0, 229, 255, 0.2);
 }
 
 .sidebarHeader {
@@ -39,6 +77,38 @@
   font-size: 12px;
   color: var(--neon-blue);
   text-shadow: var(--glow-shadow);
+}
+
+.userBadgeBtn {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.avatarCircle {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border: 1px solid var(--panel-border-soft);
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.avatarImage {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--panel-border-soft);
 }
 
 .conversationList {
@@ -199,6 +269,22 @@
   font-weight: 600;
 }
 
+.knowledgeTitleWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.knowledgeCollapseBtn {
+  min-width: 24px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -279,6 +365,46 @@
   justify-content: flex-end;
 }
 
+.docPickerBox {
+  border: 1px solid var(--panel-border-soft);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(10, 20, 36, 0.28);
+}
+
+.docPickerTitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.docPickerList {
+  max-height: 120px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docPickerItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.docPickerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(:root[data-theme='light']) .docPickerBox {
+  background: #ffffff;
+  border-color: #dfe3ea;
+}
+
 .messagePanel {
   flex: 1;
   overflow: auto;
@@ -288,6 +414,16 @@
 .msg {
   margin-bottom: 12px;
   position: relative;
+}
+
+.msgUser {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.msgUser .role {
+  text-align: right;
 }
 
 .role {
@@ -330,6 +466,12 @@
   border: 1px solid #284d84;
 }
 
+:global(:root[data-theme='light']) .bubble pre {
+  background: #f6f8fb;
+  border-color: #dfe3ea;
+  color: #111111;
+}
+
 .bubble code {
   font-family: Consolas, 'Courier New', monospace;
 }
@@ -368,6 +510,11 @@
   color: #a7d8e2;
 }
 
+:global(:root[data-theme='light']) .citationBox {
+  border-left-color: #c7ced8;
+  color: #6b7280;
+}
+
 .citationTitle,
 .citationLabel {
   font-weight: 600;
@@ -378,9 +525,22 @@
   opacity: 0.95;
 }
 
+.debugBox {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-left: 2px dashed var(--panel-border-soft);
+  padding-left: 8px;
+}
+
 .composer {
   display: flex;
   gap: 8px;
+}
+
+.sendBtn {
+  min-width: 74px;
+  font-size: 16px;
 }
 
 .contextMenu {
@@ -490,6 +650,97 @@
   min-height: 0;
 }
 
+.profileCard {
+  border: 1px solid var(--panel-border-soft);
+  border-radius: 14px;
+  background: var(--panel-bg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profileHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profileField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profileFieldLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.customFieldsTitle {
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.iconBtn {
+  min-width: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profileAvatarRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.profileAvatarUploadLabel {
+  cursor: pointer;
+}
+
+.profileAvatarImage,
+.profileAvatarFallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border-soft);
+}
+
+.profileAvatarImage {
+  object-fit: cover;
+}
+
+.profileAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.replaceAvatarText {
+  font-size: 13px;
+  color: var(--neon-blue);
+  cursor: pointer;
+}
+
 .copyToast {
   position: absolute;
   left: 50%;
@@ -504,6 +755,28 @@
   z-index: 20;
   backdrop-filter: blur(2px);
   pointer-events: none;
+}
+
+.successToast {
+  position: fixed;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  background: rgba(14, 30, 56, 0.9);
+  color: #d6f6ff;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 10px;
+  padding: 8px 12px;
+  z-index: 12000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+:global(:root[data-theme='light']) .successToast {
+  background: #ffffff;
+  color: #111111;
+  border-color: #dfe3ea;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .confirmOverlay {

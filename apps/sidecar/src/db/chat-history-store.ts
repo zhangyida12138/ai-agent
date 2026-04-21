@@ -8,6 +8,17 @@ import type { ChatMessage, Conversation, Evidence, IngestTextRequest, IngestText
 const DEFAULT_SQLITE_PATH = './data/ai-agent.sqlite';
 
 type CreateConversationRow = Conversation;
+type ConversationExportBundle = {
+  version: 1;
+  exportedAt: string;
+  conversations: Array<{
+    id: string;
+    title: string | null;
+    createdAt: string;
+    updatedAt: string;
+    messages: ChatMessage[];
+  }>;
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -86,6 +97,14 @@ export class ChatHistoryStore {
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         password_salt TEXT NOT NULL,
+        theme TEXT,
+        display_name TEXT,
+        age INTEGER,
+        gender TEXT,
+        occupation TEXT,
+        needs TEXT,
+        avatar_data TEXT,
+        custom_fields_json TEXT,
         created_at TEXT NOT NULL
       );
 
@@ -127,6 +146,14 @@ export class ChatHistoryStore {
 
     this.ensureColumn('conversations', 'user_id', 'ALTER TABLE conversations ADD COLUMN user_id TEXT');
     this.ensureColumn('documents', 'user_id', 'ALTER TABLE documents ADD COLUMN user_id TEXT');
+    this.ensureColumn('users', 'theme', 'ALTER TABLE users ADD COLUMN theme TEXT');
+    this.ensureColumn('users', 'display_name', 'ALTER TABLE users ADD COLUMN display_name TEXT');
+    this.ensureColumn('users', 'age', 'ALTER TABLE users ADD COLUMN age INTEGER');
+    this.ensureColumn('users', 'gender', 'ALTER TABLE users ADD COLUMN gender TEXT');
+    this.ensureColumn('users', 'occupation', 'ALTER TABLE users ADD COLUMN occupation TEXT');
+    this.ensureColumn('users', 'needs', 'ALTER TABLE users ADD COLUMN needs TEXT');
+    this.ensureColumn('users', 'avatar_data', 'ALTER TABLE users ADD COLUMN avatar_data TEXT');
+    this.ensureColumn('users', 'custom_fields_json', 'ALTER TABLE users ADD COLUMN custom_fields_json TEXT');
   }
 
   private ensureColumn(tableName: string, columnName: string, alterSql: string) {
@@ -319,6 +346,98 @@ export class ChatHistoryStore {
     return true;
   }
 
+  async setConversationTitleIfEmpty(conversationId: string, userId: string, title: string): Promise<boolean> {
+    const normalized = String(title || '').trim();
+    if (!normalized) return false;
+    const row = this.queryOne<any>('SELECT id, title FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
+    if (!row) return false;
+    if (row.title != null && String(row.title).trim().length > 0) return false;
+    this.db.run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
+      normalized,
+      nowIso(),
+      conversationId,
+      userId
+    ]);
+    this.saveToFile();
+    return true;
+  }
+
+  async exportConversations(userId: string, conversationIds?: string[]): Promise<ConversationExportBundle> {
+    const selected = Array.isArray(conversationIds)
+      ? conversationIds.map((x) => String(x).trim()).filter(Boolean)
+      : [];
+    const hasFilter = selected.length > 0;
+    const placeholders = hasFilter ? selected.map(() => '?').join(', ') : '';
+    const sql = `SELECT id, title, created_at, updated_at
+      FROM conversations
+      WHERE user_id = ?
+      ${hasFilter ? `AND id IN (${placeholders})` : ''}
+      ORDER BY updated_at DESC`;
+    const rows = this.queryAll<any>(sql, [userId, ...selected]);
+    const conversations = rows.map((r) => {
+      const msgRows = this.queryAll<any>(
+        'SELECT id, conversation_id, role, content, citations_json, tags_json, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
+        [String(r.id)]
+      );
+      const messages: ChatMessage[] = msgRows.map((m) => ({
+        id: String(m.id),
+        conversationId: String(m.conversation_id),
+        role: m.role as ChatMessage['role'],
+        content: String(m.content),
+        citations: m.citations_json ? (JSON.parse(m.citations_json) as ChatMessage['citations']) : undefined,
+        tags: m.tags_json ? (JSON.parse(m.tags_json) as string[]) : undefined,
+        createdAt: String(m.created_at)
+      }));
+      return {
+        id: String(r.id),
+        title: r.title == null ? null : String(r.title),
+        createdAt: String(r.created_at),
+        updatedAt: String(r.updated_at),
+        messages
+      };
+    });
+    return { version: 1, exportedAt: nowIso(), conversations };
+  }
+
+  async importConversations(
+    userId: string,
+    payload: ConversationExportBundle
+  ): Promise<{ importedConversations: number; importedMessages: number }> {
+    if (!payload || payload.version !== 1 || !Array.isArray(payload.conversations)) {
+      throw new Error('INVALID_IMPORT_PAYLOAD');
+    }
+    let importedConversations = 0;
+    let importedMessages = 0;
+    for (const conv of payload.conversations) {
+      if (!conv || !Array.isArray(conv.messages)) continue;
+      const newConversationId = randomUUID();
+      const title = conv.title == null ? null : String(conv.title);
+      const baseCreatedAt = typeof conv.createdAt === 'string' && conv.createdAt ? conv.createdAt : nowIso();
+      const baseUpdatedAt = typeof conv.updatedAt === 'string' && conv.updatedAt ? conv.updatedAt : baseCreatedAt;
+      this.db.run(
+        'INSERT INTO conversations (id, user_id, title, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?)',
+        [newConversationId, userId, title, baseCreatedAt, baseUpdatedAt, null]
+      );
+      importedConversations += 1;
+      for (const m of conv.messages) {
+        const role = String((m as any)?.role ?? '').trim();
+        const content = String((m as any)?.content ?? '');
+        if ((role !== 'user' && role !== 'assistant' && role !== 'system') || !content) continue;
+        const msgId = randomUUID();
+        const createdAt = typeof (m as any)?.createdAt === 'string' && (m as any).createdAt ? (m as any).createdAt : nowIso();
+        const citations = Array.isArray((m as any)?.citations) ? (m as any).citations : undefined;
+        const tags = Array.isArray((m as any)?.tags) ? (m as any).tags : undefined;
+        this.db.run(
+          'INSERT INTO messages (id, conversation_id, role, content, citations_json, tags_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [msgId, newConversationId, role, content, citations ? JSON.stringify(citations) : null, tags ? JSON.stringify(tags) : null, createdAt]
+        );
+        importedMessages += 1;
+      }
+    }
+    this.saveToFile();
+    return { importedConversations, importedMessages };
+  }
+
   async ingestText(req: IngestTextRequest, userId?: string | null): Promise<IngestTextResponse> {
     const title = req.title ?? null;
     const sourcePath = req.sourcePath ?? null;
@@ -356,7 +475,7 @@ export class ChatHistoryStore {
     };
   }
 
-  async lexicalRetrieveEvidence(query: string, topK: number): Promise<Evidence[]> {
+  async lexicalRetrieveEvidence(query: string, topK: number, docIds?: string[]): Promise<Evidence[]> {
     const qTokens = this.tokenize(query);
     if (qTokens.length === 0) return [];
 
@@ -365,8 +484,10 @@ export class ChatHistoryStore {
     // For MVP reliability: avoid relying solely on SQL LIKE prefilter.
     // We scan a bounded number of chunks and score by token overlap.
     const scanLimit = Math.max(200, topK * 500);
-    const rows = this.queryAll<any>(
-      `SELECT
+    const selectedDocIds = (docIds || []).map((x) => String(x).trim()).filter(Boolean);
+    const hasDocFilter = selectedDocIds.length > 0;
+    const placeholders = hasDocFilter ? selectedDocIds.map(() => '?').join(', ') : '';
+    const sql = `SELECT
         c.id AS chunk_id,
         c.document_id AS doc_id,
         c.chunk_index AS chunk_index,
@@ -374,20 +495,26 @@ export class ChatHistoryStore {
         d.source_path AS doc_source_path
       FROM document_chunks c
       JOIN documents d ON d.id = c.document_id
-      LIMIT ?`,
-      [scanLimit]
-    );
+      ${hasDocFilter ? `WHERE c.document_id IN (${placeholders})` : ''}
+      LIMIT ?`;
+    const rows = this.queryAll<any>(sql, [...selectedDocIds, scanLimit]);
 
     if (rows.length === 0) return [];
 
     const scored = rows.map((r) => {
-      const chunkTokens = this.tokenize(r.text_content);
+      const rawText = String(r.text_content);
+      const chunkTokens = this.tokenize(rawText);
       let overlap = 0;
       for (const t of chunkTokens) {
         if (qSet.has(t)) overlap += 1;
       }
-
-      const score = overlap / Math.max(1, chunkTokens.length);
+      const coverageByChunk = overlap / Math.max(1, chunkTokens.length);
+      const coverageByQuery = overlap / Math.max(1, qSet.size);
+      const normalizedChunk = rawText.toLowerCase().replace(/\s+/g, '');
+      const normalizedQuery = query.toLowerCase().replace(/\s+/g, '');
+      const containsBoost = normalizedQuery && normalizedChunk.includes(normalizedQuery) ? 0.2 : 0;
+      // Prefer recall for short queries ("名字叫什么"), avoid over-penalizing long chunks.
+      const score = Math.max(coverageByChunk, coverageByQuery) + containsBoost;
       return {
         evidence: {
           id: String(r.chunk_id),
@@ -408,9 +535,15 @@ export class ChatHistoryStore {
     return scored.slice(0, Math.max(1, topK)).map((s) => s.evidence);
   }
 
-  async getKnowledgeStats(): Promise<{ documents: number; chunks: number }> {
-    const d = this.queryOne<{ c: number }>('SELECT COUNT(1) as c FROM documents', []);
-    const c = this.queryOne<{ c: number }>('SELECT COUNT(1) as c FROM document_chunks', []);
+  async getKnowledgeStats(userId: string): Promise<{ documents: number; chunks: number }> {
+    const d = this.queryOne<{ c: number }>('SELECT COUNT(1) as c FROM documents WHERE user_id = ?', [userId]);
+    const c = this.queryOne<{ c: number }>(
+      `SELECT COUNT(1) as c
+       FROM document_chunks c
+       JOIN documents d ON d.id = c.document_id
+       WHERE d.user_id = ?`,
+      [userId]
+    );
     return { documents: d?.c ?? 0, chunks: c?.c ?? 0 };
   }
 
@@ -478,7 +611,7 @@ export class ChatHistoryStore {
     return true;
   }
 
-  async createUser(username: string, password: string): Promise<{ id: string; username: string }> {
+  async createUser(username: string, password: string): Promise<{ id: string; username: string; theme: 'dark' | 'light' }> {
     const existed = this.queryOne<any>('SELECT id FROM users WHERE username = ?', [username]);
     if (existed) {
       throw new Error('USER_EXISTS');
@@ -487,22 +620,48 @@ export class ChatHistoryStore {
     const createdAt = nowIso();
     const { hash, salt } = this.hashPassword(password);
     this.db.run(
-      'INSERT INTO users (id, username, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)',
-      [id, username, hash, salt, createdAt]
+      'INSERT INTO users (id, username, password_hash, password_salt, theme, display_name, age, gender, occupation, needs, avatar_data, custom_fields_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, username, hash, salt, 'dark', null, null, null, null, null, null, null, createdAt]
     );
     this.saveToFile();
-    return { id, username };
+    return { id, username, theme: 'dark' };
   }
 
-  async verifyUser(username: string, password: string): Promise<{ id: string; username: string } | null> {
+  async verifyUser(
+    username: string,
+    password: string
+  ): Promise<{
+    id: string;
+    username: string;
+    theme: 'dark' | 'light';
+    displayName: string | null;
+    age: number | null;
+    gender: string | null;
+    occupation: string | null;
+    needs: string | null;
+    avatarData: string | null;
+    customFields: Array<{ key: string; value: string }>;
+  } | null> {
     const row = this.queryOne<any>(
-      'SELECT id, username, password_hash, password_salt FROM users WHERE username = ?',
+      'SELECT id, username, password_hash, password_salt, theme, display_name, age, gender, occupation, needs, avatar_data, custom_fields_json FROM users WHERE username = ?',
       [username]
     );
     if (!row) return null;
     const { hash } = this.hashPassword(password, String(row.password_salt));
     if (hash !== String(row.password_hash)) return null;
-    return { id: String(row.id), username: String(row.username) };
+    const theme = String(row.theme || '').trim() === 'light' ? 'light' : 'dark';
+    return {
+      id: String(row.id),
+      username: String(row.username),
+      theme,
+      displayName: row.display_name ? String(row.display_name) : null,
+      age: row.age == null ? null : Number(row.age),
+      gender: row.gender ? String(row.gender) : null,
+      occupation: row.occupation ? String(row.occupation) : null,
+      needs: row.needs ? String(row.needs) : null,
+      avatarData: row.avatar_data ? String(row.avatar_data) : null,
+      customFields: row.custom_fields_json ? (JSON.parse(String(row.custom_fields_json)) as Array<{ key: string; value: string }>) : []
+    };
   }
 
   async createSession(userId: string): Promise<{ token: string; expiresAt: string }> {
@@ -517,9 +676,20 @@ export class ChatHistoryStore {
     return { token, expiresAt };
   }
 
-  async getUserByToken(token: string): Promise<{ id: string; username: string } | null> {
+  async getUserByToken(token: string): Promise<{
+    id: string;
+    username: string;
+    theme: 'dark' | 'light';
+    displayName: string | null;
+    age: number | null;
+    gender: string | null;
+    occupation: string | null;
+    needs: string | null;
+    avatarData: string | null;
+    customFields: Array<{ key: string; value: string }>;
+  } | null> {
     const row = this.queryOne<any>(
-      `SELECT u.id AS id, u.username AS username, s.expires_at AS expires_at
+      `SELECT u.id AS id, u.username AS username, u.theme AS theme, u.display_name AS display_name, u.age AS age, u.gender AS gender, u.occupation AS occupation, u.needs AS needs, u.avatar_data AS avatar_data, u.custom_fields_json AS custom_fields_json, s.expires_at AS expires_at
        FROM user_sessions s
        JOIN users u ON s.user_id = u.id
        WHERE s.token = ?`,
@@ -531,7 +701,84 @@ export class ChatHistoryStore {
       this.saveToFile();
       return null;
     }
-    return { id: String(row.id), username: String(row.username) };
+    const theme = String(row.theme || '').trim() === 'light' ? 'light' : 'dark';
+    return {
+      id: String(row.id),
+      username: String(row.username),
+      theme,
+      displayName: row.display_name ? String(row.display_name) : null,
+      age: row.age == null ? null : Number(row.age),
+      gender: row.gender ? String(row.gender) : null,
+      occupation: row.occupation ? String(row.occupation) : null,
+      needs: row.needs ? String(row.needs) : null,
+      avatarData: row.avatar_data ? String(row.avatar_data) : null,
+      customFields: row.custom_fields_json ? (JSON.parse(String(row.custom_fields_json)) as Array<{ key: string; value: string }>) : []
+    };
+  }
+
+  async updateUserTheme(userId: string, theme: 'dark' | 'light'): Promise<void> {
+    this.db.run('UPDATE users SET theme = ? WHERE id = ?', [theme, userId]);
+    this.saveToFile();
+  }
+
+  async updateUserProfile(
+    userId: string,
+    payload: {
+      displayName?: string | null;
+      age?: number | null;
+      gender?: string | null;
+      occupation?: string | null;
+      needs?: string | null;
+      avatarData?: string | null;
+      customFields?: Array<{ key: string; value: string }>;
+    }
+  ): Promise<void> {
+    this.db.run(
+      'UPDATE users SET display_name = ?, age = ?, gender = ?, occupation = ?, needs = ?, avatar_data = ?, custom_fields_json = ? WHERE id = ?',
+      [
+        payload.displayName ?? null,
+        payload.age ?? null,
+        payload.gender ?? null,
+        payload.occupation ?? null,
+        payload.needs ?? null,
+        payload.avatarData ?? null,
+        payload.customFields ? JSON.stringify(payload.customFields) : null,
+        userId
+      ]
+    );
+    this.saveToFile();
+  }
+
+  async getUserById(userId: string): Promise<{
+    id: string;
+    username: string;
+    theme: 'dark' | 'light';
+    displayName: string | null;
+    age: number | null;
+    gender: string | null;
+    occupation: string | null;
+    needs: string | null;
+    avatarData: string | null;
+    customFields: Array<{ key: string; value: string }>;
+  } | null> {
+    const row = this.queryOne<any>(
+      'SELECT id, username, theme, display_name, age, gender, occupation, needs, avatar_data, custom_fields_json FROM users WHERE id = ?',
+      [userId]
+    );
+    if (!row) return null;
+    const theme = String(row.theme || '').trim() === 'light' ? 'light' : 'dark';
+    return {
+      id: String(row.id),
+      username: String(row.username),
+      theme,
+      displayName: row.display_name ? String(row.display_name) : null,
+      age: row.age == null ? null : Number(row.age),
+      gender: row.gender ? String(row.gender) : null,
+      occupation: row.occupation ? String(row.occupation) : null,
+      needs: row.needs ? String(row.needs) : null,
+      avatarData: row.avatar_data ? String(row.avatar_data) : null,
+      customFields: row.custom_fields_json ? (JSON.parse(String(row.custom_fields_json)) as Array<{ key: string; value: string }>) : []
+    };
   }
 
   private queryOne<T>(sql: string, params: any[]): T | null {

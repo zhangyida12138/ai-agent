@@ -31,3 +31,42 @@
   margin: 0 0 4px;
   color: var(--text-secondary);
 }
+
+.errorOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 11000;
+}
+
+.errorDialog {
+  width: min(420px, calc(100vw - 28px));
+  border-radius: 14px;
+  border: 1px solid var(--panel-border-soft);
+  background: var(--glass);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  padding: 14px;
+}
+
+.errorTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.errorText {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.errorActions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -17,6 +17,7 @@ export function useKnowledgeModule() {
   const [ingesting, setIngesting] = useState(false);
   const [knowledgeStats, setKnowledgeStats] = useState<{ documents: number; chunks: number } | null>(null);
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([]);
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
   const [editingDocId, setEditingDocId] = useState('');
   const [editingTitle, setEditingTitle] = useState('');
@@ -35,10 +36,20 @@ export function useKnowledgeModule() {
     const resp = await listKnowledgeDocuments();
     if (!resp.ok) {
       setKnowledgeLoading(false);
-      return setError(`${resp.code}: ${resp.message}`);
+      setError(`${resp.code}: ${resp.message}`);
+      return [];
     }
-    setKnowledgeDocs(resp.data?.documents || []);
+    const docs = resp.data?.documents || [];
+    setKnowledgeDocs(docs);
+    setSelectedDocIds((prev) => {
+      const allIds = docs.map((d: KnowledgeDocument) => d.id);
+      if (allIds.length === 0) return [];
+      if (prev.length === 0) return allIds;
+      const keep = prev.filter((id) => allIds.includes(id));
+      return keep.length > 0 ? keep : allIds;
+    });
     setKnowledgeLoading(false);
+    return docs as KnowledgeDocument[];
   }
 
   async function ingest() {
@@ -50,6 +61,7 @@ export function useKnowledgeModule() {
     const resp = await ingestText({ requestId: crypto.randomUUID(), title, sourcePath: 'desktop', text });
     if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
     else {
+      setKnowledgeTitle('');
       setKnowledgeText('');
       await refreshKnowledge();
       await refreshKnowledgeDocs();
@@ -79,15 +91,18 @@ export function useKnowledgeModule() {
 
   async function removeDoc() {
     if (!editingDocId) return;
+    const deletingId = editingDocId;
     setSavingDoc(true);
-    const resp = await deleteKnowledgeDocument(editingDocId);
+    const resp = await deleteKnowledgeDocument(deletingId);
     if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
     else {
       setEditingDocId('');
       setEditingTitle('');
       setEditingText('');
       await refreshKnowledge();
-      await refreshKnowledgeDocs();
+      const docs = await refreshKnowledgeDocs();
+      const next = docs.find((d) => d.id !== deletingId) || docs[0];
+      if (next) await openDoc(next.id);
     }
     setSavingDoc(false);
   }
@@ -102,6 +117,8 @@ export function useKnowledgeModule() {
     ingesting,
     knowledgeStats,
     knowledgeDocs,
+    selectedDocIds,
+    setSelectedDocIds,
     knowledgeLoading,
     editingDocId,
     editingTitle,
