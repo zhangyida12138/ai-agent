@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ChatHistoryStore } from '../db/chat-history-store';
 import { AIProviderRouter } from '../ai/provider-router';
 import { ChatService } from './chat.service';
 import type { SendChatRequest } from '@ai-agent/shared';
+import type { Response } from 'express';
+import { Res } from '@nestjs/common';
 
 function ok<T>(data: T) {
   return { ok: true as const, code: 'SUCCESS', data };
@@ -23,23 +25,75 @@ export class ChatController {
     this.chatService = new ChatService(storePromise, router);
   }
 
+  private async requireUser(authHeader?: string) {
+    const token = this.extractToken(authHeader);
+    if (!token) return null;
+    const store = await ChatHistoryStore.create();
+    return store.getUserByToken(token);
+  }
+
+  private extractToken(authHeader?: string): string | null {
+    const v = String(authHeader ?? '').trim();
+    if (!v.toLowerCase().startsWith('bearer ')) return null;
+    return v.slice(7).trim() || null;
+  }
+
   @Get('/conversations')
-  async listConversations(@Query('limit') limitStr?: string) {
+  async listConversations(@Headers('authorization') authHeader?: string, @Query('limit') limitStr?: string) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 20;
-    return ok(await this.chatService.listConversations(limit));
+    return ok(await this.chatService.listConversations(limit, user.id));
   }
 
   @Get('/conversations/:conversationId/messages')
   async listMessages(
+    @Headers('authorization') authHeader: string | undefined,
     @Param('conversationId') conversationId: string,
     @Query('limit') limitStr?: string
   ) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    const store = await ChatHistoryStore.create();
+    const owns = await store.conversationBelongsToUser(conversationId, user.id);
+    if (!owns) return err({ code: 'FORBIDDEN', message: '无权访问该会话', retryable: false });
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 50;
     return ok(await this.chatService.listMessages(conversationId, limit));
   }
 
+  @Delete('/conversations/:conversationId')
+  async deleteConversation(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('conversationId') conversationId: string
+  ) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    const store = await ChatHistoryStore.create();
+    const deleted = await store.deleteConversation(conversationId, user.id);
+    if (!deleted) return err({ code: 'NOT_FOUND', message: '会话不存在', retryable: false });
+    return ok({ conversationId });
+  }
+
+  @Patch('/conversations/:conversationId')
+  async renameConversation(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('conversationId') conversationId: string,
+    @Body() body: any
+  ) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    const title = String(body?.title ?? '').trim();
+    if (!title) return err({ code: 'INVALID_PARAMS', message: 'title is required', retryable: false });
+    const store = await ChatHistoryStore.create();
+    const updated = await store.renameConversation(conversationId, user.id, title);
+    if (!updated) return err({ code: 'NOT_FOUND', message: '会话不存在', retryable: false });
+    return ok({ conversationId, title });
+  }
+
   @Post('/chat/send')
-  async sendChat(@Body() body: any) {
+  async sendChat(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
+    const user = await this.requireUser(authHeader);
+    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
     // Minimal validation for MVP
     const conversationId = String(body?.conversationId ?? '').trim();
     const userMessage = String(body?.userMessage ?? '').trim();
@@ -57,6 +111,7 @@ export class ChatController {
       userMessage,
       options: body?.options
     };
+    (req as any).userId = user.id;
 
     try {
       const data = await this.chatService.sendMessage(req);
@@ -67,6 +122,50 @@ export class ChatController {
       const retryable = Boolean(e?.retryable ?? true);
       const nextAction = e?.nextAction ? String(e.nextAction) : undefined;
       return err({ code, message, retryable, nextAction });
+    }
+  }
+
+  @Post('/chat/stream')
+  async streamChat(
+    @Headers('authorization') authHeader: string | undefined,
+    @Body() body: any,
+    @Res() res: Response
+  ) {
+    const user = await this.requireUser(authHeader);
+    if (!user) {
+      res.status(401).json(err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false }));
+      return;
+    }
+    const conversationId = String(body?.conversationId ?? '').trim();
+    const userMessage = String(body?.userMessage ?? '').trim();
+    if (!conversationId || !userMessage) {
+      res.status(400).json(err({ code: 'INVALID_PARAMS', message: 'conversationId 和 userMessage 必填', retryable: false }));
+      return;
+    }
+    const requestId = String(body?.requestId ?? randomUUID());
+    const req: SendChatRequest = { requestId, conversationId, userMessage, options: body?.options };
+    (req as any).userId = user.id;
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    const writeEvent = (event: string, data: any) => {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+    try {
+      writeEvent('start', { requestId, conversationId });
+      const data = await this.chatService.sendMessageStream(req, (delta) => writeEvent('delta', { delta }));
+      writeEvent('done', data);
+      res.end();
+    } catch (e: any) {
+      writeEvent('error', {
+        code: e?.code ? String(e.code) : 'INTERNAL_PROVIDER_ERROR',
+        message: e?.message ? String(e.message) : 'Failed to stream reply',
+        retryable: Boolean(e?.retryable ?? true)
+      });
+      res.end();
     }
   }
 }

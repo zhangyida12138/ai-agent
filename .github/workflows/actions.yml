@@ -1,0 +1,36 @@
+name: Deploy Static Content
+on:
+  push:
+    branches: ["main"] # 当你 push 到 main 分支时触发
+
+# 设置权限，允许 Actions 修改页面
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # 如果你的项目需要构建（如 npm run build），请取消下面两行的注释
+      - run: npm install && npm run build
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 如果你有构建产物，这里填 build 或 dist；如果没有，填 '.' (表示根目录)
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

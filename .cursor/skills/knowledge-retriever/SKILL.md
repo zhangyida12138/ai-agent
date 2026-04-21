@@ -72,3 +72,15 @@ description: Retrieve top-k relevant local knowledge passages from the built ind
 - 不负责最终回答生成（由 `ai-response-orchestrator` 完成）。
 - 不负责写入索引（由 ingestion/indexer 完成）。
 
+## 本项目已落地（2026-04）
+- 已在 `chat.service.ts` 里实现“检索 + 重排 + 过滤”链路：
+  - lexical 召回候选
+  - embedding cosine rerank（通过 provider router）
+  - score 阈值过滤与去重
+- 已支持强制 RAG 关键策略：
+  - 无证据时显式返回“未检索到相关资料”
+  - 证据格式统一用于引用展示
+- 可通过环境变量调参：
+  - `RAG_SCORE_THRESHOLD`
+  - `RAG_RERANK_WEIGHT`
+

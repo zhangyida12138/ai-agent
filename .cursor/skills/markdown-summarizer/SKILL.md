@@ -77,3 +77,8 @@ description: Produce consistent, high-quality Markdown summaries (including stru
 - 不负责检索（由 knowledge-retriever 完成）。
 - 不负责写入数据库（由各持久化 skills 完成）。
 
+## 本项目已落地（2026-04）
+- 前端聊天消息已支持 Markdown 渲染（含标题、列表、代码块、链接）。
+- 当前实现位于 `apps/desktop/src/components/chat/chat-view.tsx`，采用内置渲染逻辑（未依赖外部 markdown 包）。
+- 该能力用于 assistant 回复展示，不作为独立摘要服务端模块运行。
+

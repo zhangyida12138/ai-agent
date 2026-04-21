@@ -67,3 +67,16 @@ description: Orchestrate a full local-first chat reply by combining chat history
 - 不负责索引（由 document-ingestion-indexer / index-task-runner 完成）。
 - 不负责 provider 细节（由 ai-provider-router 完成）。
 
+## 本项目已落地（2026-04）
+- 已在 `apps/sidecar/src/chat/chat.service.ts` 与 `chat.controller.ts` 落地完整编排：
+  - 历史读取
+  - 可选本地知识检索
+  - 模型生成（支持非流式与流式）
+  - assistant 回复写回
+- 已支持 SSE 输出：
+  - `POST /chat/stream`
+  - 事件：`start` / `delta` / `done` / `error`
+- 已实现强制 RAG 注入策略与降级逻辑：
+  - 证据注入 system message
+  - 无证据时直接降级答复
+

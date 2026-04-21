@@ -1,0 +1,86 @@
+import React from 'react';
+import type { ChatMessage } from '../../modules/chat/use-chat-module';
+
+function roleLabel(role: ChatMessage['role']) {
+  if (role === 'user') return '用户';
+  if (role === 'assistant') return '助手';
+  return '系统';
+}
+
+function escapeHtml(input: string) {
+  return input.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+function markdownToHtml(md: string) {
+  const src = escapeHtml(md || '');
+  const codeBlocks: string[] = [];
+  let text = src.replace(/```([\s\S]*?)```/g, (_, code) => `@@CODEBLOCK_${codeBlocks.push(`<pre><code>${code}</code></pre>`) - 1}@@`);
+  text = text.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+  text = text.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+  text = text.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  text = text.replace(/^- (.*)$/gm, '<li>$1</li>');
+  text = text.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
+  text = text.replace(/<\/ul>\s*<ul>/g, '');
+  text = text.replace(/\n/g, '<br/>');
+  return text.replace(/@@CODEBLOCK_(\d+)@@/g, (_, i) => codeBlocks[Number(i)] ?? '');
+}
+
+export function ChatView(props: {
+  title: string;
+  messages: ChatMessage[];
+  input: string;
+  loading: boolean;
+  onInput: (v: string) => void;
+  onSend: () => void;
+  onCopyToast: (text: string) => void;
+}) {
+  const { title, messages, input, loading, onInput, onSend, onCopyToast } = props;
+  return (
+    <>
+      <div className="chat-title">{title}</div>
+      <div className="message-panel">
+        {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
+        {messages.map((m) => (
+          <div key={m.id} className={`msg ${m.role === 'user' ? 'user' : 'assistant'}`}>
+            <div className="role">{roleLabel(m.role)} · {new Date(m.createdAt).toLocaleString()}</div>
+            <div className="bubble">{m.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} /> : m.content}</div>
+            <button className="copy-msg-btn" onClick={async () => { await navigator.clipboard.writeText(m.content || ''); onCopyToast('复制成功'); }}>复制</button>
+            {m.role === 'assistant' && m.citations && m.citations.length > 0 ? (
+              <div className="citation-box">
+                <div className="citation-title">引用</div>
+                {m.citations.map((c) => (
+                  <div key={c.refId}>
+                    <div className="citation-label">{c.label}</div>
+                    <div className="citation-snippet">{c.snippet}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div className="composer">
+        <textarea
+          className="wx-input"
+          value={input}
+          onChange={(e) => onInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !loading && input.trim()) {
+              e.preventDefault();
+              onSend();
+            }
+          }}
+          rows={3}
+          placeholder="输入消息...（Enter发送，Shift+Enter换行）"
+          disabled={loading}
+        />
+        <button className="wx-btn primary" onClick={onSend} disabled={loading || !input.trim()}>
+          {loading ? '生成中...' : '发送'}
+        </button>
+      </div>
+    </>
+  );
+}

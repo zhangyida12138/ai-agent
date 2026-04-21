@@ -81,3 +81,16 @@ description: Persist and retrieve local chat sessions and messages using SQLite 
 - 不生成回复文本（由 `ai-response-orchestrator` / `markdown-summarizer` 完成）。
 - 不做 embedding/index（由索引相关 skills 完成）。
 
+## 本项目已落地（2026-04）
+- 已在 `apps/sidecar/src/db/chat-history-store.ts` 落地 SQLite 本地存储：
+  - 会话/消息 CRUD
+  - 用户与登录会话（`users` / `user_sessions`）
+  - 知识库文档与分块存储（`documents` / `document_chunks`）
+- 已实现多用户数据隔离：
+  - `conversations.user_id`
+  - `documents.user_id`
+- 已支持：
+  - 会话重命名、删除
+  - 会话归属校验
+  - 文档列表/详情/更新/删除
+

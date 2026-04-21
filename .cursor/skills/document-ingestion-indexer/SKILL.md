@@ -86,3 +86,14 @@ description: Ingest local documents and build searchable indexes (chunking, meta
 - 不负责“回答用户问题”（由检索与 orchestrator 完成）。
 - 不负责 UI 进度展示（由 index-task-runner 产生事件/状态）。
 
+## 本项目已落地（2026-04）
+- 已在 `knowledge/ingest-text` 接口实现文本导入到本地知识库：
+  - 文档元数据写入
+  - 分块策略（chunkSize/overlap）切块
+  - token 计数与 chunk 持久化
+- 已提供知识库管理相关接口：
+  - 文档列表
+  - 文档详情（回拼文本）
+  - 文档更新（重建分块）
+  - 文档删除
+

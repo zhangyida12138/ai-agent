@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import initSqlJs from 'sql.js';
 import { randomUUID } from 'crypto';
+import crypto from 'node:crypto';
 import type { ChatMessage, Conversation, Evidence, IngestTextRequest, IngestTextResponse } from '@ai-agent/shared';
 
 const DEFAULT_SQLITE_PATH = './data/ai-agent.sqlite';
@@ -57,6 +58,7 @@ export class ChatHistoryStore {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
+        user_id TEXT,
         title TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -79,8 +81,29 @@ export class ChatHistoryStore {
     `);
 
     this.db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        password_salt TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_user
+        ON user_sessions(user_id);
+    `);
+
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY,
+        user_id TEXT,
         source_path TEXT,
         title TEXT,
         created_at TEXT NOT NULL,
@@ -101,6 +124,23 @@ export class ChatHistoryStore {
       CREATE INDEX IF NOT EXISTS idx_chunks_document
         ON document_chunks(document_id, chunk_index);
     `);
+
+    this.ensureColumn('conversations', 'user_id', 'ALTER TABLE conversations ADD COLUMN user_id TEXT');
+    this.ensureColumn('documents', 'user_id', 'ALTER TABLE documents ADD COLUMN user_id TEXT');
+  }
+
+  private ensureColumn(tableName: string, columnName: string, alterSql: string) {
+    const cols = this.queryAll<any>(`PRAGMA table_info(${tableName})`, []);
+    const exists = cols.some((c) => String(c.name) === columnName);
+    if (!exists) {
+      this.db.run(alterSql);
+    }
+  }
+
+  private hashPassword(password: string, salt?: string): { hash: string; salt: string } {
+    const actualSalt = salt ?? crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(password, actualSalt, 64).toString('hex');
+    return { hash, salt: actualSalt };
   }
 
   private saveToFile() {
@@ -159,22 +199,23 @@ export class ChatHistoryStore {
     return { chunkSize, overlap, chunks };
   }
 
-  async upsertConversation(id: string, title?: string | null): Promise<CreateConversationRow> {
+  async upsertConversation(id: string, title?: string | null, userId?: string | null): Promise<CreateConversationRow> {
     const createdAt = nowIso();
     const updatedAt = nowIso();
 
     // sql.js doesn't support transaction wrappers like better-sqlite3 by default; we can still use manual control.
     const existing = this.queryOne<{ id: string }>('SELECT id FROM conversations WHERE id = ?', [id]);
     if (existing) {
-      this.db.run('UPDATE conversations SET title = COALESCE(?, title), updated_at = ? WHERE id = ?', [
+      this.db.run('UPDATE conversations SET title = COALESCE(?, title), user_id = COALESCE(?, user_id), updated_at = ? WHERE id = ?', [
         title ?? null,
+        userId ?? null,
         updatedAt,
         id
       ]);
     } else {
       this.db.run(
-        'INSERT INTO conversations (id, title, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?)',
-        [id, title ?? null, createdAt, updatedAt, null]
+        'INSERT INTO conversations (id, user_id, title, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, userId ?? null, title ?? null, createdAt, updatedAt, null]
       );
     }
 
@@ -192,10 +233,10 @@ export class ChatHistoryStore {
     };
   }
 
-  async listConversations(limit: number): Promise<Conversation[]> {
+  async listConversations(limit: number, userId: string): Promise<Conversation[]> {
     const rows = this.queryAll<any>(
-      'SELECT id, title, created_at, updated_at, metadata_json FROM conversations ORDER BY updated_at DESC LIMIT ?',
-      [limit]
+      'SELECT id, title, created_at, updated_at, metadata_json FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?',
+      [userId, limit]
     );
     return rows.map((r) => ({
       id: r.id,
@@ -251,7 +292,34 @@ export class ChatHistoryStore {
     return { messages, total };
   }
 
-  async ingestText(req: IngestTextRequest): Promise<IngestTextResponse> {
+  async conversationBelongsToUser(conversationId: string, userId: string): Promise<boolean> {
+    const row = this.queryOne<any>('SELECT id FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
+    return Boolean(row?.id);
+  }
+
+  async deleteConversation(conversationId: string, userId: string): Promise<boolean> {
+    const row = this.queryOne<any>('SELECT id FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
+    if (!row) return false;
+    this.db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
+    this.db.run('DELETE FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
+    this.saveToFile();
+    return true;
+  }
+
+  async renameConversation(conversationId: string, userId: string, title: string): Promise<boolean> {
+    const row = this.queryOne<any>('SELECT id FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
+    if (!row) return false;
+    this.db.run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
+      title,
+      nowIso(),
+      conversationId,
+      userId
+    ]);
+    this.saveToFile();
+    return true;
+  }
+
+  async ingestText(req: IngestTextRequest, userId?: string | null): Promise<IngestTextResponse> {
     const title = req.title ?? null;
     const sourcePath = req.sourcePath ?? null;
     const text = req.text;
@@ -262,8 +330,8 @@ export class ChatHistoryStore {
     const createdAt = nowIso();
 
     this.db.run(
-      'INSERT INTO documents (id, source_path, title, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?)',
-      [docId, sourcePath, title, createdAt, createdAt, null]
+      'INSERT INTO documents (id, user_id, source_path, title, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [docId, userId ?? null, sourcePath, title, createdAt, createdAt, null]
     );
 
     for (const c of chunks) {
@@ -344,6 +412,126 @@ export class ChatHistoryStore {
     const d = this.queryOne<{ c: number }>('SELECT COUNT(1) as c FROM documents', []);
     const c = this.queryOne<{ c: number }>('SELECT COUNT(1) as c FROM document_chunks', []);
     return { documents: d?.c ?? 0, chunks: c?.c ?? 0 };
+  }
+
+  async listDocuments(userId: string): Promise<Array<{ id: string; title: string | null; sourcePath: string | null; createdAt: string; updatedAt: string; chunkCount: number }>> {
+    const rows = this.queryAll<any>(
+      `SELECT d.id, d.title, d.source_path, d.created_at, d.updated_at, COUNT(c.id) AS chunk_count
+       FROM documents d
+       LEFT JOIN document_chunks c ON c.document_id = d.id
+       WHERE d.user_id = ?
+       GROUP BY d.id, d.title, d.source_path, d.created_at, d.updated_at
+       ORDER BY d.updated_at DESC`,
+      [userId]
+    );
+    return rows.map((r) => ({
+      id: String(r.id),
+      title: r.title ? String(r.title) : null,
+      sourcePath: r.source_path ? String(r.source_path) : null,
+      createdAt: String(r.created_at),
+      updatedAt: String(r.updated_at),
+      chunkCount: Number(r.chunk_count ?? 0)
+    }));
+  }
+
+  async getDocumentById(userId: string, docId: string): Promise<{ id: string; title: string | null; sourcePath: string | null; text: string } | null> {
+    const doc = this.queryOne<any>('SELECT id, title, source_path FROM documents WHERE id = ? AND user_id = ?', [docId, userId]);
+    if (!doc) return null;
+    const chunks = this.queryAll<any>(
+      'SELECT text_content FROM document_chunks WHERE document_id = ? ORDER BY chunk_index ASC',
+      [docId]
+    );
+    const text = chunks.map((c) => String(c.text_content)).join('\n');
+    return {
+      id: String(doc.id),
+      title: doc.title ? String(doc.title) : null,
+      sourcePath: doc.source_path ? String(doc.source_path) : null,
+      text
+    };
+  }
+
+  async updateDocument(userId: string, docId: string, title: string | null, text: string): Promise<{ id: string }> {
+    const existed = this.queryOne<any>('SELECT id FROM documents WHERE id = ? AND user_id = ?', [docId, userId]);
+    if (!existed) {
+      throw new Error('DOC_NOT_FOUND');
+    }
+    const now = nowIso();
+    const chunks = this.chunkText(text, undefined).chunks;
+    this.db.run('DELETE FROM document_chunks WHERE document_id = ?', [docId]);
+    for (const c of chunks) {
+      this.db.run(
+        'INSERT INTO document_chunks (id, document_id, chunk_index, text_content, token_count, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [randomUUID(), docId, c.chunkIndex, c.text, this.tokenize(c.text).length, now]
+      );
+    }
+    this.db.run('UPDATE documents SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?', [title, now, docId, userId]);
+    this.saveToFile();
+    return { id: docId };
+  }
+
+  async deleteDocument(userId: string, docId: string): Promise<boolean> {
+    const existed = this.queryOne<any>('SELECT id FROM documents WHERE id = ? AND user_id = ?', [docId, userId]);
+    if (!existed) return false;
+    this.db.run('DELETE FROM document_chunks WHERE document_id = ?', [docId]);
+    this.db.run('DELETE FROM documents WHERE id = ? AND user_id = ?', [docId, userId]);
+    this.saveToFile();
+    return true;
+  }
+
+  async createUser(username: string, password: string): Promise<{ id: string; username: string }> {
+    const existed = this.queryOne<any>('SELECT id FROM users WHERE username = ?', [username]);
+    if (existed) {
+      throw new Error('USER_EXISTS');
+    }
+    const id = randomUUID();
+    const createdAt = nowIso();
+    const { hash, salt } = this.hashPassword(password);
+    this.db.run(
+      'INSERT INTO users (id, username, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)',
+      [id, username, hash, salt, createdAt]
+    );
+    this.saveToFile();
+    return { id, username };
+  }
+
+  async verifyUser(username: string, password: string): Promise<{ id: string; username: string } | null> {
+    const row = this.queryOne<any>(
+      'SELECT id, username, password_hash, password_salt FROM users WHERE username = ?',
+      [username]
+    );
+    if (!row) return null;
+    const { hash } = this.hashPassword(password, String(row.password_salt));
+    if (hash !== String(row.password_hash)) return null;
+    return { id: String(row.id), username: String(row.username) };
+  }
+
+  async createSession(userId: string): Promise<{ token: string; expiresAt: string }> {
+    const token = randomUUID();
+    const createdAt = nowIso();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+    this.db.run(
+      'INSERT INTO user_sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+      [token, userId, createdAt, expiresAt]
+    );
+    this.saveToFile();
+    return { token, expiresAt };
+  }
+
+  async getUserByToken(token: string): Promise<{ id: string; username: string } | null> {
+    const row = this.queryOne<any>(
+      `SELECT u.id AS id, u.username AS username, s.expires_at AS expires_at
+       FROM user_sessions s
+       JOIN users u ON s.user_id = u.id
+       WHERE s.token = ?`,
+      [token]
+    );
+    if (!row) return null;
+    if (new Date(String(row.expires_at)).getTime() <= Date.now()) {
+      this.db.run('DELETE FROM user_sessions WHERE token = ?', [token]);
+      this.saveToFile();
+      return null;
+    }
+    return { id: String(row.id), username: String(row.username) };
   }
 
   private queryOne<T>(sql: string, params: any[]): T | null {

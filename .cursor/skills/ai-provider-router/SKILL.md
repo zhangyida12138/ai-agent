@@ -68,3 +68,11 @@ description: Route AI requests to configured text/vision/embedding providers (cl
 - 不负责检索与索引。
 - 不负责 orchestrator 的提示词策略（prompt/模板由上层传入）。
 
+## 本项目已落地（2026-04）
+- 已在 `apps/sidecar/src/ai/provider-router.ts` 落地 DeepSeek 统一适配：
+  - `generateText`（非流式）
+  - `generateTextStream`（SSE 增量）
+  - `generateEmbeddings`（用于检索重排）
+- 已统一错误映射（鉴权失败、限流、请求过大、服务不可用）。
+- 当前默认 provider 为 `deepseek`，通过 `.env` 中 `AI_PROVIDER_KIND` 与 DeepSeek 相关变量控制。
+

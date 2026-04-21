@@ -2,8 +2,11 @@
   "name": "ai-agent",
   "private": true,
   "packageManager": "pnpm@10.15.1",
+  "base": "./",
   "scripts": {
-    "dev": "pnpm -r run dev",
+    "dev": "pnpm --parallel --filter @ai-agent/sidecar --filter @ai-agent/desktop run dev",
+    "dev:sidecar": "pnpm --filter @ai-agent/sidecar dev",
+    "dev:desktop": "pnpm --filter @ai-agent/desktop dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck"
