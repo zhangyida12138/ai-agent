@@ -25,3 +25,10 @@ dist-ssr
 stats.html
 vite.config.ts.*.mjs
 .nx
+
+.env
+.env.local
+.env.development
+.env.production
+
+.next
