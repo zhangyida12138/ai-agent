@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { deleteKnowledgeDocument, getKnowledgeDocument, getKnowledgeStats, ingestText, listKnowledgeDocuments, updateKnowledgeDocument } from '../../api';
+import { broadcastKnowledgeSync, subscribeKnowledgeSync } from './knowledge-sync';
 
 export type KnowledgeDocument = {
   id: string;
@@ -52,6 +53,27 @@ export function useKnowledgeModule() {
     return docs as KnowledgeDocument[];
   }
 
+  const refreshKnowledgeRef = useRef(refreshKnowledge);
+  const refreshKnowledgeDocsRef = useRef(refreshKnowledgeDocs);
+  refreshKnowledgeRef.current = refreshKnowledge;
+  refreshKnowledgeDocsRef.current = refreshKnowledgeDocs;
+
+  /** 同浏览器多标签广播 + 定时拉取（多端共用同一 sidecar 时对齐知识库） */
+  useEffect(() => {
+    const unsub = subscribeKnowledgeSync(() => {
+      void refreshKnowledgeRef.current();
+      void refreshKnowledgeDocsRef.current();
+    });
+    const poll = window.setInterval(() => {
+      void refreshKnowledgeRef.current();
+      void refreshKnowledgeDocsRef.current();
+    }, 12000);
+    return () => {
+      unsub();
+      window.clearInterval(poll);
+    };
+  }, []);
+
   async function ingest() {
     const text = knowledgeText.trim();
     const title = knowledgeTitle.trim();
@@ -65,6 +87,7 @@ export function useKnowledgeModule() {
       setKnowledgeText('');
       await refreshKnowledge();
       await refreshKnowledgeDocs();
+      broadcastKnowledgeSync({ type: 'knowledge-changed' });
     }
     setIngesting(false);
   }
@@ -85,6 +108,7 @@ export function useKnowledgeModule() {
     else {
       await refreshKnowledge();
       await refreshKnowledgeDocs();
+      broadcastKnowledgeSync({ type: 'knowledge-changed' });
     }
     setSavingDoc(false);
   }
@@ -101,6 +125,7 @@ export function useKnowledgeModule() {
       setEditingText('');
       await refreshKnowledge();
       const docs = await refreshKnowledgeDocs();
+      broadcastKnowledgeSync({ type: 'knowledge-changed' });
       const next = docs.find((d) => d.id !== deletingId) || docs[0];
       if (next) await openDoc(next.id);
     }

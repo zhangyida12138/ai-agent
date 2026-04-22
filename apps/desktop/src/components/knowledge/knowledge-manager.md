@@ -12,7 +12,7 @@
 - `editingText` / `setEditingText(value)`: 编辑正文
 - `saving`: 保存状态
 - `onOpenDoc(id)`: 打开文档
-- `onSave()`: 保存文档
+- `onSave()`: 更新文档
 - `onDelete()`: 删除文档
 
 ## 用法示例

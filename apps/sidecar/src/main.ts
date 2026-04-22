@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -19,7 +20,9 @@ async function bootstrap() {
     dotenv.config({ path: envPath });
   }
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useBodyParser('json', { limit: '25mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '25mb' });
 
   // For local dev: desktop UI (Vite) -> sidecar API (NestJS)
   app.enableCors({ origin: true, credentials: true });

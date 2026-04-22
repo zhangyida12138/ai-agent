@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { deleteConversation, exportConversations, importConversations, listConversations, listMessages, renameConversation, streamChat } from '../../api';
+import { broadcastChatSync, subscribeChatSync } from './chat-sync';
 
 export type Conversation = { id: string; title?: string | null; updatedAt: string };
 export type ChatMessage = {
@@ -32,6 +33,8 @@ export function useChatModule() {
   const typingDonePayloadRef = useRef<any>(null);
   const typingStreamFinishedRef = useRef(false);
   const streamAbortRef = useRef<AbortController | null>(null);
+  /** 用户点击「中断」时为 true；部分浏览器中止 fetch 抛 TypeError 而非 AbortError，不能仅靠 signal / name 判断 */
+  const userInterruptRef = useRef(false);
   const TYPING_INTERVAL_MS = 18;
   const CHARS_PER_TICK = 2;
 
@@ -57,6 +60,7 @@ export function useChatModule() {
 
   function stopGenerating() {
     if (!loading) return;
+    userInterruptRef.current = true;
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
   }
@@ -74,6 +78,7 @@ export function useChatModule() {
   function finalizeAbortedAssistantMessage() {
     flushPendingQueueIntoAssistant();
     resetTypingState();
+    userInterruptRef.current = false;
     setLoading(false);
   }
 
@@ -118,6 +123,11 @@ export function useChatModule() {
 
   useEffect(() => () => resetTypingState(), []);
 
+  const activeIdRef = useRef(activeId);
+  const loadingRef = useRef(loading);
+  activeIdRef.current = activeId;
+  loadingRef.current = loading;
+
   async function refreshConversations() {
     const resp = await listConversations(20);
     if (!resp.ok) {
@@ -142,6 +152,37 @@ export function useChatModule() {
     if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
     setMessages((resp.data as any).messages || []);
   }
+
+  const refreshMessagesRef = useRef(refreshMessages);
+  const refreshConversationsRef = useRef(refreshConversations);
+  refreshMessagesRef.current = refreshMessages;
+  refreshConversationsRef.current = refreshConversations;
+
+  /** 同浏览器多标签即时同步 + 定时轮询（多端/多窗口共用同一 sidecar 数据） */
+  useEffect(() => {
+    const unsub = subscribeChatSync((msg) => {
+      if (msg.type === 'conversations-changed') {
+        void refreshConversationsRef.current();
+        return;
+      }
+      if (msg.type === 'messages-changed' && msg.conversationId === activeIdRef.current && !loadingRef.current) {
+        void refreshMessagesRef.current(msg.conversationId);
+      }
+    });
+    const pollMessages = window.setInterval(() => {
+      const id = activeIdRef.current;
+      if (!id || loadingRef.current) return;
+      void refreshMessagesRef.current(id);
+    }, 4500);
+    const pollConversations = window.setInterval(() => {
+      void refreshConversationsRef.current();
+    }, 15000);
+    return () => {
+      unsub();
+      window.clearInterval(pollMessages);
+      window.clearInterval(pollConversations);
+    };
+  }, []);
 
   async function sendMessage(useLocalKnowledge: boolean, selectedDocIds?: string[]) {
     const userMessage = input.trim();
@@ -169,6 +210,7 @@ export function useChatModule() {
     setInput('');
     setLoading(true);
     setError(null);
+    userInterruptRef.current = false;
     setActiveId(conversationId);
     const req = {
       requestId: crypto.randomUUID(),
@@ -205,26 +247,42 @@ export function useChatModule() {
       onError: (e) => {
         if (e.code === 'ABORTED') return;
         resetTypingState();
+        userInterruptRef.current = false;
         setLoading(false);
         setError(`${e.code || 'STREAM_ERROR'}: ${e.message || '流式响应失败'}`);
       }
     }, { signal: controller.signal }).catch((e: any) => {
-      if (e?.name === 'AbortError') return;
+      const msg = typeof e?.message === 'string' ? e.message : '';
+      const aborted =
+        userInterruptRef.current ||
+        controller.signal.aborted ||
+        e?.name === 'AbortError' ||
+        /User aborted|AbortError|signal is aborted|aborted a request/i.test(msg);
+      if (aborted) return;
       throw e;
     });
     streamAbortRef.current = null;
     if (!done) {
-      if (controller.signal.aborted) {
+      if (controller.signal.aborted || userInterruptRef.current) {
         finalizeAbortedAssistantMessage();
+        await refreshConversations();
+        broadcastChatSync({ type: 'messages-changed', conversationId });
+        broadcastChatSync({ type: 'conversations-changed' });
         return;
       }
       resetTypingState();
+      userInterruptRef.current = false;
       setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       setLoading(false);
     } else if (!typingTimerRef.current && typingQueueRef.current.length === 0) {
       tryFinalizeAssistantMessage();
     }
     await refreshConversations();
+    if (done) {
+      await refreshMessages(conversationId);
+    }
+    broadcastChatSync({ type: 'messages-changed', conversationId });
+    broadcastChatSync({ type: 'conversations-changed' });
   }
 
   async function removeConversation(conversationId: string) {
@@ -238,12 +296,16 @@ export function useChatModule() {
       setActiveId('');
       setMessages([]);
     }
+    broadcastChatSync({ type: 'conversations-changed' });
+    broadcastChatSync({ type: 'messages-changed', conversationId });
   }
 
   async function renameConv(conversationId: string, title: string) {
     const resp = await renameConversation(conversationId, title);
     if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
     await refreshConversations();
+    broadcastChatSync({ type: 'conversations-changed' });
+    broadcastChatSync({ type: 'messages-changed', conversationId });
   }
 
   async function exportConversationById(conversationId: string): Promise<string | null> {
@@ -283,6 +345,7 @@ export function useChatModule() {
       return null;
     }
     await refreshConversations();
+    broadcastChatSync({ type: 'conversations-changed' });
     return resp.data as { importedConversations: number; importedMessages: number };
   }
 

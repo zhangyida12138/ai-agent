@@ -47,11 +47,15 @@ export function ChatView(props: {
   useEffect(() => {
     const el = panelRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = gap < 120;
+    if (loading || nearBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, loading]);
   return (
     <>
-      <div className={styles.chatTitle}>{title}</div>
+      <div className={`${styles.chatTitle} ${styles.chatTitleWithKb}`}>{title}</div>
       <div ref={panelRef} className={styles.messagePanel}>
         {toast ? <div className={styles.copyToast}>{toast}</div> : null}
         {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
@@ -59,9 +63,18 @@ export function ChatView(props: {
           <div key={m.id} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : ''}`}>
             <div className={styles.role}>{roleLabel(m.role)} · {formatDisplayDateTime(m.createdAt)}</div>
             <div className={`${styles.bubble} ${m.role === 'assistant' ? styles.assistantBubble : styles.userBubble}`}>
+              <button
+                type="button"
+                className={styles.copyMsgBtn}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(m.content || '');
+                  onCopyToast('复制成功');
+                }}
+              >
+                复制
+              </button>
               {m.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} /> : m.content}
             </div>
-            <button className={styles.copyMsgBtn} onClick={async () => { await navigator.clipboard.writeText(m.content || ''); onCopyToast('复制成功'); }}>复制</button>
             {m.role === 'assistant' && m.citations && m.citations.length > 0 ? (
               <div className={styles.citationBox}>
                 <div className={styles.citationTitle}>引用</div>

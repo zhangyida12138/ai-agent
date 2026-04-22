@@ -234,6 +234,12 @@
   background: linear-gradient(180deg, #f5f9ff 0%, #ebf2ff 100%);
 }
 
+:global(:root[data-theme='light']) .knowledgeBox,
+:global(:root[data-theme='light']) .messagePanel {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(17, 24, 39, 0.08);
+}
+
 .chatTitle {
   font-weight: 700;
   color: var(--neon-blue);
@@ -241,11 +247,18 @@
   text-shadow: var(--glow-shadow);
 }
 
+/* 与上方 .knowledgeBox 内「本地知识库」标题左缘对齐（卡片左边框 + 内边距） */
+.chatTitleWithKb {
+  padding-left: calc(1px + 12px);
+}
+
 .knowledgeBox,
 .messagePanel {
   border: 1px solid var(--panel-border-soft);
-  border-radius: 14px;
-  background: var(--panel-bg);
+  border-radius: 16px;
+  background: rgba(20, 28, 47, 0.45);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   padding: 12px;
 }
 
@@ -361,8 +374,194 @@
   white-space: nowrap;
 }
 
-.docEditorActions {
-  justify-content: flex-end;
+.uploadKnowledgeBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.knowledgeTitleRow {
+  align-items: center;
+}
+
+.knowledgeTitleInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.knowledgeTextRow {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.knowledgeIngestTextarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 88px;
+  resize: vertical;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.knowledgeIngestTextareaDrop {
+  border-color: var(--neon-blue) !important;
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.35), 0 0 14px rgba(0, 229, 255, 0.2);
+}
+
+.knowledgeUploadAside {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.knowledgeUploadClickBtn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.knowledgeHelpWrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.knowledgeHelpLink {
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: var(--neon-blue);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: help;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(0, 229, 255, 0.55);
+}
+
+.knowledgeHelpLink:hover,
+.knowledgeHelpLink:focus-visible {
+  color: #7aebff;
+  text-decoration-color: var(--neon-blue);
+  outline: none;
+}
+
+.knowledgeHelpPopover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(280px, 72vw);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: rgba(12, 22, 40, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  text-align: left;
+  z-index: 30;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    visibility 0.12s ease;
+}
+
+.knowledgeHelpPopoverTitle {
+  margin: 0 0 6px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--neon-blue);
+}
+
+.knowledgeHelpPopoverList {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.knowledgeHelpPopoverList li {
+  margin-bottom: 4px;
+}
+
+.knowledgeHelpPopoverList li:last-child {
+  margin-bottom: 0;
+}
+
+.knowledgeHelpWrap:hover .knowledgeHelpPopover,
+.knowledgeHelpWrap:focus-within .knowledgeHelpPopover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+:global(:root[data-theme='light']) .knowledgeHelpLink {
+  color: #315efb;
+  text-decoration-color: rgba(49, 94, 251, 0.45);
+}
+
+:global(:root[data-theme='light']) .knowledgeHelpLink:hover,
+:global(:root[data-theme='light']) .knowledgeHelpLink:focus-visible {
+  color: #1d4ed8;
+  text-decoration-color: #315efb;
+}
+
+:global(:root[data-theme='light']) .knowledgeHelpPopover {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(76, 125, 255, 0.35);
+  color: #111111;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+:global(:root[data-theme='light']) .knowledgeHelpPopoverTitle {
+  color: #315efb;
+}
+
+.docEditorHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.docEditorTitleInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.docEditorToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.docEditorTextarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  overflow: auto;
+}
+
+.docEditorEmpty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .docPickerBox {
@@ -414,11 +613,12 @@
 .msg {
   margin-bottom: 12px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .msgUser {
-  display: flex;
-  flex-direction: column;
   align-items: flex-end;
 }
 
@@ -433,29 +633,50 @@
 }
 
 .bubble {
+  --msg-corner: 16px;
+  position: relative;
   white-space: pre-wrap;
-  padding: 12px 16px;
+  padding: 12px 52px 12px 16px;
   font-size: 14px;
   line-height: 1.5;
+  max-width: min(720px, 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
 }
 
+/* 助手靠左：左侧两角为直角（贴边），右侧圆角 */
 .assistantBubble {
-  background: var(--surface-blue);
-  border-left: 2px solid var(--neon-blue);
-  clip-path: polygon(0 0, 100% 0, 100% 80%, 90% 100%, 0 100%);
+  align-self: flex-start;
+  margin-right: auto;
+  border-radius: 0 var(--msg-corner) var(--msg-corner) 0;
+  background: rgba(20, 30, 52, 0.55);
+  border-left: 3px solid var(--neon-blue);
 }
 
+/* 用户靠右：右侧两角为直角，左侧圆角 */
 .userBubble {
-  background: rgba(0, 229, 255, 0.12);
-  border-right: 2px solid var(--neon-blue);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 10% 100%, 0 80%);
-  box-shadow: inset 0 0 10px rgba(0, 229, 255, 0.12);
+  align-self: flex-end;
+  margin-left: auto;
+  border-radius: var(--msg-corner) 0 0 var(--msg-corner);
+  background: rgba(0, 229, 255, 0.14);
+  border-right: 3px solid var(--neon-blue);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+:global(:root[data-theme='light']) .assistantBubble {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(76, 125, 255, 0.22);
+  border-left-color: var(--neon-blue);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
 }
 
 :global(:root[data-theme='light']) .userBubble {
-  background: #eaf1ff;
-  border-right-color: #b9cbff;
-  box-shadow: none;
+  background: rgba(237, 242, 255, 0.92);
+  border-color: rgba(76, 125, 255, 0.2);
+  border-right-color: var(--neon-blue);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
 }
 
 .bubble pre {
@@ -478,8 +699,9 @@
 
 .copyMsgBtn {
   position: absolute;
-  right: 10px;
-  top: 22px;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
   border: 1px solid rgba(0, 229, 255, 0.4);
   background: rgba(10, 18, 32, 0.96);
   color: var(--neon-blue);
@@ -489,6 +711,16 @@
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.bubble:hover .copyMsgBtn {
+  opacity: 0.5;
+  pointer-events: auto;
+}
+
+.copyMsgBtn:hover {
+  opacity: 0.9 !important;
 }
 
 :global(:root[data-theme='light']) .copyMsgBtn {
@@ -497,22 +729,24 @@
   color: #111111;
 }
 
-.msg:hover .copyMsgBtn {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .citationBox {
   margin-top: 8px;
-  border-left: 3px solid var(--neon-blue);
-  padding-left: 8px;
+  padding: 10px 12px;
   font-size: 12px;
   color: #a7d8e2;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  background: rgba(12, 22, 40, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
 }
 
 :global(:root[data-theme='light']) .citationBox {
-  border-left-color: #c7ced8;
-  color: #6b7280;
+  color: #5f6368;
+  border-color: rgba(17, 24, 39, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
 
 .citationTitle,
@@ -529,13 +763,33 @@
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-secondary);
-  border-left: 2px dashed var(--panel-border-soft);
-  padding-left: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px dashed rgba(0, 229, 255, 0.28);
+  background: rgba(10, 18, 34, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:global(:root[data-theme='light']) .debugBox {
+  border-color: rgba(17, 24, 39, 0.12);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .composer {
   display: flex;
   gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--panel-border-soft);
+  background: rgba(20, 28, 47, 0.42);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+:global(:root[data-theme='light']) .composer {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(17, 24, 39, 0.08);
 }
 
 .sendBtn {
@@ -584,6 +838,8 @@
 
 .docList {
   width: 320px;
+  flex-shrink: 0;
+  min-height: 0;
   border: none;
   border-radius: 12px;
   padding: 10px;
@@ -596,6 +852,8 @@
 
 .docEditor {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   border: none;
   border-radius: 12px;
   padding: 10px;
@@ -643,6 +901,14 @@
   background: #edf2ff;
 }
 
+.knowledgePage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .knowledgeManager {
   flex: 1;
   display: flex;
@@ -684,10 +950,24 @@
   color: var(--text-secondary);
 }
 
+/* 区块标题「自定义字段」：与下方具体取值区分开 */
 .customFieldsTitle {
-  font-size: 16px;
-  color: var(--text-primary);
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neon-blue);
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+  text-shadow: var(--glow-shadow);
+}
+
+:global(:root[data-theme='light']) .customFieldsTitle {
+  color: #315efb;
+  text-shadow: none;
+}
+
+.profileFieldRowGrow {
+  flex: 1;
+  min-width: 0;
 }
 
 .iconBtn {

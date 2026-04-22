@@ -358,18 +358,17 @@ export class ChatService {
     } catch (e: any) {
       if (String(e?.code) === 'ABORTED') {
         const partialText = String(e?.partialText ?? streamedText ?? '').trim();
-        if (partialText) {
-          const assistantMsg: ChatMessage = {
-            id: assistantMessageId,
-            conversationId,
-            role: 'assistant',
-            content: partialText,
-            citations: [],
-            createdAt: nowIso()
-          };
-          const store = await this.storePromise;
-          await store.appendMessage(assistantMsg);
-        }
+        const content = partialText || '（生成已中断）';
+        const assistantMsg: ChatMessage = {
+          id: assistantMessageId,
+          conversationId,
+          role: 'assistant',
+          content,
+          citations: [],
+          createdAt: nowIso()
+        };
+        const store = await this.storePromise;
+        await store.appendMessage(assistantMsg);
         throw { code: 'ABORTED', message: 'generation aborted', retryable: false };
       }
       const code = e?.code ? String(e.code) : ErrorCodes.INTERNAL_PROVIDER_ERROR;

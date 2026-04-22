@@ -52,11 +52,12 @@ export function AppLayout() {
     kb.refreshKnowledgeDocs().then(() => undefined);
   }, []);
 
+  // 仅切换会话时拉取消息。不要在 loading 结束时刷新：中断后服务端可能尚未写入助手行，
+  // refresh 会用不含该条的结果覆盖本地，导致「中断后气泡消失」。
   useEffect(() => {
     if (!chat.activeId) return;
-    if (chat.loading) return;
     chat.refreshMessages(chat.activeId);
-  }, [chat.activeId, chat.loading]);
+  }, [chat.activeId]);
 
   useEffect(() => {
     if (!chat.toast) return;
@@ -166,7 +167,6 @@ export function AppLayout() {
             setSettingsMenu({ x: e.clientX, y: e.clientY });
           }}
           tab={tab}
-          onTab={() => navigate('/chat')}
           convMenu={convMenu}
           onContextMenu={(e, id) => {
             e.preventDefault();
@@ -192,23 +192,13 @@ export function AppLayout() {
         {tab !== 'settings' ? (
           <KnowledgeIngestCard
             useLocalKnowledge={kb.useLocalKnowledge}
-            setUseLocalKnowledge={(v) => {
-              kb.setUseLocalKnowledge(v);
-              if (!v) {
-                kb.setSelectedDocIds([]);
-                return;
-              }
-              kb.setSelectedDocIds((prev) => {
-                if (prev.length > 0) return prev;
-                return kb.knowledgeDocs.map((d) => d.id);
-              });
-            }}
+            setUseLocalKnowledge={kb.setUseLocalKnowledge}
+            showUseLocalKnowledgeToggle={tab === 'chat'}
             docs={kb.knowledgeDocs}
             selectedDocIds={kb.selectedDocIds}
             onToggleDoc={(docId, selected) => {
               kb.setSelectedDocIds((prev) => {
                 const next = selected ? Array.from(new Set([...prev, docId])) : prev.filter((id) => id !== docId);
-                kb.setUseLocalKnowledge(next.length > 0);
                 return next;
               });
             }}
@@ -219,7 +209,12 @@ export function AppLayout() {
             setText={kb.setKnowledgeText}
             ingesting={kb.ingesting}
             onIngest={kb.ingest}
-            statsText={kb.knowledgeStats ? `已入库：${kb.knowledgeStats.documents} 文档，${kb.knowledgeStats.chunks} 块` : '等待加载知识库统计...'}
+            statsText={
+              kb.knowledgeStats
+                ? `已入库：${kb.knowledgeStats.documents} 篇文档，共 ${kb.knowledgeStats.chunks} 个知识分块（入库时切分的检索片段）`
+                : '等待加载知识库统计...'
+            }
+            onUploadError={(msg) => kb.setError(msg)}
             collapsible
             collapsed={knowledgeCardCollapsed}
             onToggleCollapse={() => setKnowledgeCardCollapsed((prev) => !prev)}
@@ -239,7 +234,7 @@ export function AppLayout() {
             onCopyToast={(text) => chat.setToast(text)}
           />
         ) : tab === 'knowledge' ? (
-          <>
+          <div className={styles.knowledgePage}>
             <div className={styles.chatTitle}>本地知识库管理</div>
             <KnowledgeManager
               docs={kb.knowledgeDocs}
@@ -254,7 +249,7 @@ export function AppLayout() {
               onSave={() => kb.saveDoc()}
               onDelete={() => setPendingDeleteDoc(true)}
             />
-          </>
+          </div>
         ) : (
           <>
             <div className={styles.profileHeader}>
@@ -386,14 +381,14 @@ export function AppLayout() {
                 )}
               </div>
               <div className={styles.profileField}>
-                <div className={`${styles.profileFieldLabel} ${styles.customFieldsTitle}`}>自定义字段</div>
+                <div className={styles.customFieldsTitle}>自定义字段</div>
                 {profileCustomFields.map((field, idx) => (
                   <div key={`cf-${idx}`} className={styles.profileField}>
                     <div className={styles.profileFieldLabel}>{field.key || `字段 ${idx + 1}`}</div>
                     {isProfileEditing ? (
                       <div className={styles.row}>
                         <input
-                          className="wx-input"
+                          className={`wx-input ${styles.profileFieldRowGrow}`}
                           value={field.value}
                           onChange={(e) =>
                             setProfileCustomFields((prev) => prev.map((x, i) => (i === idx ? { ...x, value: e.target.value } : x)))

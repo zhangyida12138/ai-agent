@@ -14,7 +14,6 @@ export function ConversationSidebar(props: {
   onProfile: () => void;
   onSettingsMenu: (e: React.MouseEvent<HTMLButtonElement>) => void;
   tab: 'chat' | 'knowledge' | 'settings';
-  onTab: (tab: 'chat') => void;
   convMenu: { x: number; y: number; conversationId: string } | null;
   onContextMenu: (e: React.MouseEvent, conversationId: string) => void;
   renamingId: string;
@@ -35,7 +34,6 @@ export function ConversationSidebar(props: {
     onProfile,
     onSettingsMenu,
     tab,
-    onTab,
     onContextMenu,
     renamingId,
     renamingTitle,
@@ -88,7 +86,6 @@ export function ConversationSidebar(props: {
           </div>
         ))}
       </div>
-      <button className={`wx-btn ${tab === 'chat' ? `primary ${styles.activeTab}` : 'ghost'}`} onClick={() => onTab('chat')}>聊天</button>
       <button className={`wx-btn ${tab === 'settings' ? `primary ${styles.activeTab}` : 'ghost'}`} onClick={onSettingsMenu}>设置</button>
     </div>
   );
