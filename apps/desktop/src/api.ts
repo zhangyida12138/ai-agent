@@ -2,7 +2,7 @@ export type Envelope<T> =
   | { ok: true; code: 'SUCCESS'; data: T }
   | { ok: false; code: string; message: string; retryable: boolean; nextAction?: string };
 
-const SIDECAR_URL = import.meta.env.VITE_SIDECAR_URL || 'http://localhost:3001';
+const SIDECAR_URL = import.meta.env.VITE_SIDECAR_URL || '/api';
 const AUTH_TOKEN_KEY = 'ai-agent-auth-token';
 
 async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
