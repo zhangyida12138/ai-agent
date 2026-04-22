@@ -293,7 +293,17 @@ export class ChatService {
     req: SendChatRequest,
     onDelta: (delta: string) => void,
     shouldStop?: () => boolean
-  ): Promise<{ reply: { text: string; citations: Array<{ refId: string; label: string; snippet: string }> }; persisted: { conversationId: string; assistantMessageId: string } }> {
+  ): Promise<{
+    reply: { text: string; citations: Array<{ refId: string; label: string; snippet: string }> };
+    persisted: { conversationId: string; assistantMessageId: string };
+    debug?: {
+      useLocalKnowledge: boolean;
+      selectedDocCount: number;
+      candidateCount: number;
+      filteredCount: number;
+      evidenceCount: number;
+    };
+  }> {
     const conversationId = req.conversationId;
     const assistantMessageId = randomUUID();
     const streamAbortController = new AbortController();
