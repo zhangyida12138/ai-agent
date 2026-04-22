@@ -14,12 +14,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: "pnpm"
 
       - name: Enable pnpm from packageManager
         run: |
           corepack enable
-          corepack install
+          corepack prepare pnpm@10.15.1 --activate
           pnpm --version
 
       - name: Install dependencies
@@ -58,7 +57,7 @@ jobs:
 
           echo "[deploy] install and build"
           corepack enable
-          corepack install
+          corepack prepare pnpm@10.15.1 --activate
           pnpm --version
           pnpm install --frozen-lockfile --prod=false
           pnpm -r build
