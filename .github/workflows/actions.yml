@@ -1,36 +1,36 @@
-name: Deploy Static Content
+name: 自动部署到腾讯云
+
 on:
   push:
-    branches: ["main"] # 当你 push 到 main 分支时触发
-
-# 设置权限，允许 Actions 修改页面
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+    branches:
+      - main
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      # 如果你的项目需要构建（如 npm run build），请取消下面两行的注释
-      - run: npm install && npm run build
-      
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: 连接服务器并自动部署
+        uses: appleboy/ssh-action@master
         with:
-          # 如果你有构建产物，这里填 build 或 dist；如果没有，填 '.' (表示根目录)
-          path: '.'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # 拉最新代码
+            git pull origin main
+            
+            # 停止旧容器
+            sudo docker stop next-ai-bot || true
+            sudo docker rm next-ai-bot || true
+            sudo docker rmi next-ai-image || true
+            
+            # 构建并启动
+            sudo docker build -t next-ai-image .
+            sudo docker run -d \
+              --name next-ai-bot \
+              --restart always \
+              -p 3000:3000 \
+              --env-file .env \
+              next-ai-image
