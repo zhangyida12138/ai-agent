@@ -1,0 +1,72 @@
+name: CI-CD-Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prod=false
+
+      - name: Build all packages
+        run: pnpm -r build
+
+      - name: Typecheck (non-blocking)
+        run: pnpm -r typecheck || true
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH Key
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            set -e
+
+            echo "[deploy] cd to project"
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "[deploy] sync code"
+            git fetch --all
+            git reset --hard origin/main
+
+            echo "[deploy] install and build"
+            pnpm install --frozen-lockfile --prod=false
+            pnpm -r build
+
+            echo "[deploy] update frontend static files"
+            sudo mkdir -p /var/www/ai-agent
+            sudo rm -rf /var/www/ai-agent/*
+            sudo cp -r apps/desktop/dist/* /var/www/ai-agent/
+
+            echo "[deploy] reload sidecar"
+            pm2 restart ai-agent-sidecar || pm2 start "pnpm --filter @ai-agent/sidecar start" --name ai-agent-sidecar
+            pm2 save
+
+            echo "[deploy] apply nginx config from repo"
+            sudo cp deploy/nginx/ai-agent.conf /etc/nginx/sites-available/ai-agent.conf
+            sudo ln -sf /etc/nginx/sites-available/ai-agent.conf /etc/nginx/sites-enabled/ai-agent.conf
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+            echo "[deploy] done"
