@@ -36,14 +36,14 @@ jobs:
             git pull origin main
 
             # 重启 Docker
-            sudo docker stop next-ai-bot || true
-            sudo docker rm next-ai-bot || true
+            sudo docker stop AI_AGENT || true
+            sudo docker rm AI_AGENT || true
             sudo docker rmi next-ai-image || true
 
             sudo docker build -t next-ai-image .
 
             sudo docker run -d \
-              --name next-ai-bot \
+              --name AI_AGENT \
               --restart always \
               -p 3000:3000 \
               --env-file .env \
