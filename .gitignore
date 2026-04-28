@@ -32,3 +32,4 @@ vite.config.ts.*.mjs
 .env.production
 
 .next
+apps/sidecar/data/ai-agent.sqlite
