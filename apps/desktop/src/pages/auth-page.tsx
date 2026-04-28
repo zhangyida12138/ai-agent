@@ -12,6 +12,7 @@ export function AuthPage() {
   return (
     <div className={styles.shell}>
       <div className={styles.card}>
+        <img className={styles.brandLogo} src="/logo-dark.svg" alt="智能助手标志" />
         <h1 className={styles.title}>AI 助手</h1>
         <p className={styles.subtitle}>登录后访问聊天与知识库</p>
         <input className="wx-input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="用户名" disabled={loading} />

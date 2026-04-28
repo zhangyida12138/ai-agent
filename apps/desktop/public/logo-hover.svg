@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-label="智能助手悬浮标志">
+  <defs>
+    <linearGradient id="bgHover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111827" />
+      <stop offset="40%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <linearGradient id="lineHover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+  </defs>
+  <rect x="20" y="40" width="240" height="240" rx="56" fill="url(#bgHover)" />
+  <path d="M140 90l62 36v72l-62 36-62-36v-72z" fill="none" stroke="url(#lineHover)" stroke-width="9" stroke-linejoin="round" />
+  <path d="M140 122v80M106 142l34 20 34-20M106 182l34 20 34-20" fill="none" stroke="#f8fafc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="140" cy="90" r="7" fill="#67e8f9" />
+  <circle cx="202" cy="126" r="6" fill="#c084fc" />
+  <circle cx="202" cy="198" r="6" fill="#c084fc" />
+  <circle cx="140" cy="234" r="7" fill="#67e8f9" />
+  <circle cx="78" cy="198" r="6" fill="#c084fc" />
+  <circle cx="78" cy="126" r="6" fill="#c084fc" />
+  <text x="320" y="156" fill="#e2e8f0" font-family="Microsoft YaHei,PingFang SC,Segoe UI,Arial,sans-serif" font-size="84" font-weight="700">智能助手</text>
+  <text x="324" y="220" fill="#cbd5e1" font-family="Microsoft YaHei,PingFang SC,Segoe UI,Arial,sans-serif" font-size="36" font-weight="500">本地优先智能系统</text>
+</svg>

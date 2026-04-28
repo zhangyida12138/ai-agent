@@ -22,6 +22,7 @@ export function ConversationSidebar(props: {
   onRenameBlur: (id: string) => Promise<void>;
   onRenameCancel: () => void;
   onToggleCollapse: () => void;
+  theme: 'dark' | 'light';
 }) {
   const {
     userName,
@@ -40,10 +41,18 @@ export function ConversationSidebar(props: {
     setRenamingTitle,
     onRenameBlur,
     onRenameCancel,
-    onToggleCollapse
+    onToggleCollapse,
+    theme
   } = props;
   return (
     <div className={styles.sidebar}>
+      <div className={styles.sidebarBrand}>
+        <img
+          className={styles.sidebarBrandLogo}
+          src={theme === 'light' ? '/logo-light.svg' : '/logo-dark.svg'}
+          alt="智能助手标志"
+        />
+      </div>
       <div className={styles.sidebarHeader}>
         <button className="wx-btn primary" onClick={onNew}>新建会话</button>
         <button className={`wx-btn ghost ${styles.collapseBtn}`} onClick={onToggleCollapse} title="收起侧栏">

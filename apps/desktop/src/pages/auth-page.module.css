@@ -21,6 +21,16 @@
   gap: 10px;
 }
 
+.brandLogo {
+  width: min(300px, 100%);
+  height: auto;
+  align-self: center;
+}
+
+:global(:root[data-theme='light']) .brandLogo {
+  content: url('/logo-light.svg');
+}
+
 .title {
   margin: 0;
   color: var(--neon-blue);

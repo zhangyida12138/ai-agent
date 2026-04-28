@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { deleteKnowledgeDocument, getKnowledgeDocument, getKnowledgeStats, ingestText, listKnowledgeDocuments, updateKnowledgeDocument } from '../../api';
 import { broadcastKnowledgeSync, subscribeKnowledgeSync } from './knowledge-sync';
+import { createUuid } from '../../utils/uuid';
 
 export type KnowledgeDocument = {
   id: string;
@@ -80,7 +81,7 @@ export function useKnowledgeModule() {
     if (!text || !title || ingesting) return;
     setIngesting(true);
     setError(null);
-    const resp = await ingestText({ requestId: crypto.randomUUID(), title, sourcePath: 'desktop', text });
+    const resp = await ingestText({ requestId: createUuid(), title, sourcePath: 'desktop', text });
     if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
     else {
       setKnowledgeTitle('');

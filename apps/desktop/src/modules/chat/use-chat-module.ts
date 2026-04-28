@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { deleteConversation, exportConversations, importConversations, listConversations, listMessages, renameConversation, streamChat } from '../../api';
 import { broadcastChatSync, subscribeChatSync } from './chat-sync';
+import { createUuid } from '../../utils/uuid';
 
 export type Conversation = { id: string; title?: string | null; updatedAt: string };
 export type ChatMessage = {
@@ -189,7 +190,7 @@ export function useChatModule() {
     if (!userMessage || loading) return;
     const nowIso = new Date().toISOString();
     const isNewConversation = !activeId;
-    const conversationId = activeId || crypto.randomUUID();
+    const conversationId = activeId || createUuid();
     if (isNewConversation) {
       const optimisticTitle = userMessage.length > 18 ? `${userMessage.slice(0, 18)}...` : userMessage;
       setConversations((prev) => [{ id: conversationId, title: optimisticTitle, updatedAt: nowIso }, ...prev.filter((c) => c.id !== conversationId)]);
@@ -199,7 +200,7 @@ export function useChatModule() {
     const optimistic = [
       ...messages,
       {
-        id: crypto.randomUUID(),
+        id: createUuid(),
         conversationId,
         role: 'user',
         content: userMessage,
@@ -213,7 +214,7 @@ export function useChatModule() {
     userInterruptRef.current = false;
     setActiveId(conversationId);
     const req = {
-      requestId: crypto.randomUUID(),
+      requestId: createUuid(),
       conversationId,
       userMessage,
       options: {
@@ -225,7 +226,7 @@ export function useChatModule() {
         maxEvidenceChars: 2000
       }
     };
-    const assistantId = crypto.randomUUID();
+    const assistantId = createUuid();
     setMessages([...optimistic, { id: assistantId, conversationId, role: 'assistant', content: '', createdAt: nowIso }]);
     resetTypingState();
     typingAssistantIdRef.current = assistantId;

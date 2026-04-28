@@ -31,6 +31,14 @@
   flex-direction: column;
 }
 
+.collapsedBrandIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border-soft);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.16);
+}
+
 .collapsedConversationList {
   flex: 1;
   width: 100%;
@@ -71,6 +79,23 @@
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+.sidebarBrand {
+  border: 1px solid var(--panel-border-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(10, 18, 34, 0.45);
+}
+
+.sidebarBrandLogo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+:global(:root[data-theme='light']) .sidebarBrand {
+  background: #ffffff;
 }
 
 .userBadge {
@@ -931,6 +956,64 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.brandShowcase {
+  border: 1px solid var(--panel-border-soft);
+  border-radius: 14px;
+  background: var(--panel-bg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brandShowcaseTitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.brandLogoHover {
+  position: relative;
+  width: min(720px, 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border-soft);
+  background: rgba(10, 18, 34, 0.45);
+}
+
+.brandLogoHover img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: opacity 0.28s ease, transform 0.28s ease, filter 0.28s ease;
+}
+
+.brandLogoBase {
+  opacity: 1;
+}
+
+.brandLogoActive {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(1.02);
+  filter: saturate(1.15) drop-shadow(0 0 10px rgba(103, 232, 249, 0.3));
+}
+
+.brandLogoHover:hover .brandLogoBase {
+  opacity: 0;
+  transform: scale(1.01);
+}
+
+.brandLogoHover:hover .brandLogoActive {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.brandLogoMeta {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .profileField {

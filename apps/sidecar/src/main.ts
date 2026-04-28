@@ -66,11 +66,37 @@ async function bootstrap() {
 
   app.enableCors(buildCorsOptions());
 
-  const port = process.env.SIDECAR_PORT ? Number(process.env.SIDECAR_PORT) : 3001;
-  await app.listen(port);
+  const basePort = process.env.SIDECAR_PORT ? Number(process.env.SIDECAR_PORT) : 3001;
+  const portStrategy = (process.env.SIDECAR_PORT_STRATEGY || 'lock').toLowerCase();
+  const maxPortTries = Number(process.env.SIDECAR_PORT_MAX_TRIES || 20);
+  let port = basePort;
+  let started = false;
+  let lastErr: unknown = null;
+
+  for (let i = 0; i < maxPortTries; i += 1) {
+    try {
+      await app.listen(port);
+      started = true;
+      break;
+    } catch (err: any) {
+      const inUse = err?.code === 'EADDRINUSE';
+      if (!inUse) throw err;
+      lastErr = err;
+      if (portStrategy !== 'increment') {
+        // eslint-disable-next-line no-console
+        console.warn(`[sidecar] port ${port} already in use; skip duplicate startup (SIDECAR_PORT_STRATEGY=lock)`);
+        return;
+      }
+      port += 1;
+    }
+  }
+  if (!started) {
+    if (lastErr) throw lastErr;
+    throw new Error(`[sidecar] failed to bind port starting from ${basePort}`);
+  }
   const envLabel = process.env.NODE_ENV || 'development';
   // eslint-disable-next-line no-console
-  console.log(`[sidecar] NODE_ENV=${envLabel} listening on http://localhost:${port}`);
+  console.log(`[sidecar] NODE_ENV=${envLabel} listening on http://localhost:${port} (strategy=${portStrategy})`);
 }
 
 bootstrap();

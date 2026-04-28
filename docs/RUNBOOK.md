@@ -140,6 +140,10 @@ pnpm --filter @ai-agent/sidecar start
 ## 5. 常见问题
 
 - 端口被占用：关闭占用 `3001` 或 `5173` 的进程后重启。
+- Sidecar 重复启动（`EADDRINUSE`）：
+  - `SIDECAR_PORT_STRATEGY=lock`（默认）：若 `3001` 已占用则跳过重复实例启动，不再报错退出。
+  - `SIDECAR_PORT_STRATEGY=increment`：自动尝试 `3002`、`3003`...
+  - 可选 `SIDECAR_PORT_MAX_TRIES=20`：控制自增模式最大尝试次数。
 - 模型配置报错：当前默认 `mock`，若设置了其他 provider 但未实现，会返回 `PROVIDER_NOT_CONFIGURED`。
 - 看不到知识效果：确认已导入文本、`useLocalKnowledge=true`、提问内容与导入文本相关。
 - 生产环境接口报 CORS：检查 `CORS_ORIGINS` 是否包含前端页面的完整 Origin（含 `https://`）；或改用上文同域反代方案。

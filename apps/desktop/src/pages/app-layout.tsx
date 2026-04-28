@@ -115,6 +115,7 @@ export function AppLayout() {
     <div className={`app-shell ${styles.shell}`}>
       {sidebarCollapsed ? (
         <div className={styles.sidebarCollapsed}>
+          <img className={styles.collapsedBrandIcon} src="/icon.svg" alt="智能助手图标" title="智能助手" />
           <button className={`wx-btn ghost ${styles.expandBtn}`} onClick={() => setSidebarCollapsed(false)} title="展开侧栏">
             <span aria-hidden>▶</span>
           </button>
@@ -147,6 +148,7 @@ export function AppLayout() {
         </div>
       ) : (
         <ConversationSidebar
+          theme={theme}
           userName={user?.username || ''}
           displayName={user?.displayName || ''}
           avatarData={user?.avatarData || null}
@@ -252,6 +254,18 @@ export function AppLayout() {
           </div>
         ) : (
           <>
+            <div className={styles.brandShowcase}>
+              <div className={styles.brandShowcaseTitle}>品牌 Logo（悬浮查看动态版）</div>
+              <div className={styles.brandLogoHover}>
+                <img
+                  className={styles.brandLogoBase}
+                  src={theme === 'light' ? '/logo-light.svg' : '/logo-dark.svg'}
+                  alt="智能助手标志"
+                />
+                <img className={styles.brandLogoActive} src="/logo-hover.svg" alt="智能助手悬浮标志" />
+              </div>
+              <div className={styles.brandLogoMeta}>另含黑白版：/logo-bw.svg</div>
+            </div>
             <div className={styles.profileHeader}>
               <div className={styles.chatTitle}>个人信息</div>
               <button

@@ -12,7 +12,43 @@ async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>
     headers: { 'Content-Type': 'application/json', ...authHeader, ...(init?.headers || {}) },
     ...init
   });
-  return (await res.json()) as Envelope<T>;
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.toLowerCase().includes('application/json');
+  const raw = await res.text();
+
+  if (!raw) {
+    return {
+      ok: false,
+      code: 'EMPTY_RESPONSE',
+      message: `接口返回空响应: ${path}`,
+      retryable: true,
+      nextAction: '请确认 sidecar 服务已启动并可访问'
+    };
+  }
+
+  if (!isJson) {
+    const trimmed = raw.trim();
+    const shortPreview = trimmed.slice(0, 120);
+    return {
+      ok: false,
+      code: 'INVALID_RESPONSE_FORMAT',
+      message: `接口未返回 JSON（HTTP ${res.status}）: ${shortPreview}`,
+      retryable: true,
+      nextAction: '请检查前端 /api 代理或 VITE_SIDECAR_URL 配置'
+    };
+  }
+
+  try {
+    return JSON.parse(raw) as Envelope<T>;
+  } catch {
+    return {
+      ok: false,
+      code: 'INVALID_JSON',
+      message: `接口 JSON 解析失败（HTTP ${res.status}）`,
+      retryable: true,
+      nextAction: '请检查 sidecar 返回内容是否为合法 JSON'
+    };
+  }
 }
 
 export async function listConversations(limit = 20) {
