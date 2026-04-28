@@ -311,14 +311,14 @@ export function AppLayout() {
                 type="file"
                 accept="image/*"
                 onChange={(e) => {
-                  if (!isProfileEditing) return;
                   const file = e.target.files?.[0];
                   if (!file) return;
-                    if (file.size > MAX_AVATAR_BYTES) {
-                      setErrorModal('图片过大（最大 1MB）');
-                      e.currentTarget.value = '';
-                      return;
-                    }
+                  if (file.size > MAX_AVATAR_BYTES) {
+                    setErrorModal('图片过大（最大 1MB）');
+                    e.currentTarget.value = '';
+                    return;
+                  }
+                  if (!isProfileEditing) setIsProfileEditing(true);
                   const reader = new FileReader();
                   reader.onload = () => setProfileAvatarData(typeof reader.result === 'string' ? reader.result : null);
                   reader.readAsDataURL(file);
@@ -328,7 +328,7 @@ export function AppLayout() {
                 {profileAvatarData ? (
                   <>
                     <img className={styles.profileAvatarImage} src={profileAvatarData} alt="avatar" />
-                    <label className={styles.replaceAvatarText} htmlFor={isProfileEditing ? 'profile-avatar-upload' : undefined}>
+                    <label className={styles.replaceAvatarText} htmlFor="profile-avatar-upload">
                       替换头像
                     </label>
                   </>

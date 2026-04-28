@@ -6,9 +6,9 @@
   "main": "dist/main.js",
   "scripts": {
     "predev": "pnpm --filter @ai-agent/shared build",
-    "dev": "tsx watch src/main.ts",
+    "dev": "cross-env NODE_ENV=development tsx watch src/main.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/main.js",
+    "start": "cross-env NODE_ENV=production node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"(skip)\""
   },
@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/express": "*",
     "@types/node": "*",
+    "cross-env": "^7.0.3",
     "tsx": "*",
     "typescript": "*"
   }

@@ -60,9 +60,87 @@ $body=@{
 Invoke-RestMethod -Method Post -Uri "http://localhost:3001/chat/send" -ContentType "application/json" -Body $body
 ```
 
-## 4. 常见问题
+## 4. 生产部署与跨域（CORS）
+
+### 4.1 推荐：Nginx 同域反代（前端无跨域）
+
+浏览器只访问一个站点（例如 `https://notgonnalieplz.site`），静态页与 `/api` 同源：
+
+- 静态资源：`location /` → `dist`（`pnpm --filter @ai-agent/desktop build` 产物）
+- API：`location /api/` → 反代到本机 Sidecar（去掉前缀后路径应对齐 Nest 路由，如 `/conversations`）
+
+示例（**`ssl_certificate` 等按你服务器上 Let’s Encrypt 或证书路径修改**；`root` 指向 `apps/desktop/dist` 的部署目录）：
+
+```nginx
+server {
+  listen 443 ssl http2;
+  server_name notgonnalieplz.site www.notgonnalieplz.site;
+
+  ssl_certificate     /etc/letsencrypt/live/notgonnalieplz.site/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/notgonnalieplz.site/privkey.pem;
+
+  root /var/www/ai-agent/desktop;
+  index index.html;
+
+  location /api/ {
+    proxy_pass http://127.0.0.1:3001/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+```
+
+另可复制仓库内 `deploy/nginx-notgonnalieplz.site.conf` 作为起点。
+
+注意：`proxy_pass` 末尾带 `/` 时，会把 `/api/foo` 转成后端 `/foo`，与前端 `VITE_SIDECAR_URL=/api`（请求 `/api/conversations` → 后端 `/conversations`）一致。
+
+构建前在仓库根目录准备 `.env.production`，至少包含：
+
+- `VITE_SIDECAR_URL=/api`
+- `CORS_ORIGINS=https://notgonnalieplz.site,https://www.notgonnalieplz.site`（与浏览器实际访问的 **Origin** 一致；`apex` 与 `www` 需分别列出）
+
+**DeepSeek API Key（`DEEPSEEK_API_KEY`）推荐注入方式（任选其一，勿提交到 git）：**
+
+1. **仅服务器上的 `.env.production`**：在部署机编辑该文件，写入 `DEEPSEEK_API_KEY=sk-...`，文件权限建议 `chmod 600 .env.production`。
+2. **systemd**：在 unit 里使用 `Environment=DEEPSEEK_API_KEY=sk-...` 或 `EnvironmentFile=/etc/ai-agent/secrets.env`（`secrets.env` 仅 root 可读）。
+3. **启动前 export**（临时）：`export DEEPSEEK_API_KEY=sk-...` 后执行 `pnpm --filter @ai-agent/sidecar start`。
+4. **Docker**：`docker run -e DEEPSEEK_API_KEY=sk-... ...`。
+
+说明：进程在加载 `.env*` **之前**已存在且非空的 `DEEPSEEK_API_KEY` 不会被 env 文件里的空行覆盖，便于「文件里留占位、密钥只由 systemd 注入」。
+
+Sidecar 在服务器上：
+
+```powershell
+pnpm --filter @ai-agent/shared build
+pnpm --filter @ai-agent/sidecar build
+$env:NODE_ENV="production"
+pnpm --filter @ai-agent/sidecar start
+```
+
+（Linux 可用 `export NODE_ENV=production`；`start` 脚本已内置 `NODE_ENV=production`。）
+
+### 4.2 前后端分离（不同域名）
+
+- 构建前端时设置 `VITE_SIDECAR_URL=https://api.example.com`
+- Sidecar 的 `.env.production` 中设置 `CORS_ORIGINS=https://app.example.com`（仅允许你的前端站点）
+
+### 4.3 本地预览生产包
+
+`pnpm --filter @ai-agent/desktop preview` 在 `VITE_SIDECAR_URL=/api` 时同样走 Vite 代理（需本机 Sidecar 已启动）。
+
+---
+
+## 5. 常见问题
 
 - 端口被占用：关闭占用 `3001` 或 `5173` 的进程后重启。
 - 模型配置报错：当前默认 `mock`，若设置了其他 provider 但未实现，会返回 `PROVIDER_NOT_CONFIGURED`。
 - 看不到知识效果：确认已导入文本、`useLocalKnowledge=true`、提问内容与导入文本相关。
+- 生产环境接口报 CORS：检查 `CORS_ORIGINS` 是否包含前端页面的完整 Origin（含 `https://`）；或改用上文同域反代方案。
 
