@@ -88,7 +88,11 @@ importers:
         specifier: '*'
         version: 5.9.3
 
-  packages/shared: {}
+  packages/shared:
+    devDependencies:
+      typescript:
+        specifier: '*'
+        version: 5.9.3
 
 packages:
 
