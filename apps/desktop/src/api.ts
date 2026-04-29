@@ -3,7 +3,7 @@ export type Envelope<T> =
   | { ok: false; code: string; message: string; retryable: boolean; nextAction?: string };
 
 const SIDECAR_URL = import.meta.env.VITE_SIDECAR_URL || '/api';
-const AUTH_TOKEN_KEY = 'ai-agent-auth-token';
+const AUTH_TOKEN_KEY = 'liefree-auth-token';
 
 async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);

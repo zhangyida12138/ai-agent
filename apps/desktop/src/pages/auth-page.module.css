@@ -10,7 +10,7 @@
 }
 
 .card {
-  width: 360px;
+  width: min(420px, calc(100vw - 28px));
   margin: auto;
   border: 1px solid var(--panel-border-soft);
   border-radius: 18px;
@@ -21,25 +21,68 @@
   gap: 10px;
 }
 
-.brandLogo {
-  width: min(300px, 100%);
-  height: auto;
-  align-self: center;
+.brandRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  align-self: stretch;
 }
 
-:global(:root[data-theme='light']) .brandLogo {
-  content: url('/logo-light.svg');
+.brandMark {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  object-fit: contain;
 }
 
-.title {
-  margin: 0;
+.brandNames {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.brandEn {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   color: var(--neon-blue);
   text-shadow: var(--glow-shadow);
 }
 
-.subtitle {
-  margin: 0 0 4px;
+.brandSep {
+  font-size: 22px;
+  font-weight: 300;
   color: var(--text-secondary);
+  opacity: 0.7;
+  user-select: none;
+}
+
+.brandZh {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.95;
+}
+
+.sloganEn {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--neon-blue);
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+}
+
+.subtitle {
+  margin: 10px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border-soft);
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .errorOverlay {
