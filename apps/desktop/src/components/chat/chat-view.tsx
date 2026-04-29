@@ -1,8 +1,14 @@
 import React from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '../../modules/chat/use-chat-module';
 import styles from '../../pages/app-layout.module.css';
 import { formatDisplayDateTime } from '../../utils/datetime';
+import { copyTextToClipboard } from '../../utils/copy-to-clipboard';
+
+const COMPOSER_H_MIN = 72;
+const COMPOSER_H_MAX = 240;
+const COMPOSER_H_DEFAULT = 100;
+const COMPOSER_STORAGE_KEY = 'chat-composer-height-px';
 
 function roleLabel(role: ChatMessage['role']) {
   if (role === 'user') return '用户';
@@ -44,6 +50,44 @@ export function ChatView(props: {
 }) {
   const { title, messages, input, loading, toast, onInput, onSend, onStop, onCopyToast } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const [composerPx, setComposerPx] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem(COMPOSER_STORAGE_KEY);
+      const n = raw ? Number(raw) : NaN;
+      if (!Number.isFinite(n)) return COMPOSER_H_DEFAULT;
+      return Math.min(COMPOSER_H_MAX, Math.max(COMPOSER_H_MIN, Math.round(n)));
+    } catch {
+      return COMPOSER_H_DEFAULT;
+    }
+  });
+  const onComposerGripDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = composerPx;
+    const onMove = (ev: PointerEvent) => {
+      // 分隔条下移 → 输入区变矮；上移 → 输入区变高（与常见分割条习惯一致）
+      const next = Math.min(COMPOSER_H_MAX, Math.max(COMPOSER_H_MIN, Math.round(startH - (ev.clientY - startY))));
+      setComposerPx(next);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      setComposerPx((h) => {
+        try {
+          sessionStorage.setItem(COMPOSER_STORAGE_KEY, String(h));
+        } catch {
+          /* ignore */
+        }
+        return h;
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
   useEffect(() => {
     const el = panelRef.current;
     if (!el) return;
@@ -53,13 +97,19 @@ export function ChatView(props: {
       el.scrollTop = el.scrollHeight;
     }
   }, [messages, loading]);
+
   return (
-    <>
+    <div className={styles.chatViewShell}>
+      {toast ? (
+        <div className={styles.copyToastOverlay} aria-live="polite">
+          <div className={styles.copyToast}>{toast}</div>
+        </div>
+      ) : null}
       <div className={`${styles.chatTitle} ${styles.chatTitleWithKb}`}>{title}</div>
-      <div ref={panelRef} className={styles.messagePanel}>
-        {toast ? <div className={styles.copyToast}>{toast}</div> : null}
-        {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
-        {messages.map((m) => (
+      <div className={styles.chatMainColumn}>
+        <div ref={panelRef} className={styles.messagePanel}>
+          {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
+          {messages.map((m) => (
           <div key={m.id} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : ''}`}>
             <div className={styles.role}>{roleLabel(m.role)} · {formatDisplayDateTime(m.createdAt)}</div>
             <div className={`${styles.bubble} ${m.role === 'assistant' ? styles.assistantBubble : styles.userBubble}`}>
@@ -67,8 +117,8 @@ export function ChatView(props: {
                 type="button"
                 className={styles.copyMsgBtn}
                 onClick={async () => {
-                  await navigator.clipboard.writeText(m.content || '');
-                  onCopyToast('复制成功');
+                  const ok = await copyTextToClipboard(m.content || '');
+                  onCopyToast(ok ? '复制成功' : '复制失败，请使用 HTTPS 或允许剪贴板权限');
                 }}
               >
                 复制
@@ -92,11 +142,18 @@ export function ChatView(props: {
               </div>
             ) : null}
           </div>
-        ))}
-      </div>
-      <div className={styles.composer}>
+          ))}
+        </div>
+        <div
+          className={styles.composerGrip}
+          onPointerDown={onComposerGripDown}
+          title="拖动分隔条调整输入框高度（向上拉高、向下压低）"
+          role="separator"
+          aria-orientation="horizontal"
+        />
+        <div className={styles.composer}>
         <textarea
-          className="wx-input"
+          className={`wx-input ${styles.composerTextarea}`}
           value={input}
           onChange={(e) => onInput(e.target.value)}
           onKeyDown={(e) => {
@@ -105,14 +162,16 @@ export function ChatView(props: {
               onSend();
             }
           }}
-          rows={3}
+          rows={1}
+          style={{ height: composerPx }}
           placeholder="输入消息...（Enter发送，Shift+Enter换行）"
           disabled={loading}
         />
         <button className={`wx-btn primary ${styles.sendBtn}`} onClick={loading ? onStop : onSend} disabled={!loading && !input.trim()}>
           {loading ? '中断生成' : '发送'}
         </button>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
