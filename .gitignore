@@ -32,4 +32,6 @@ vite.config.ts.*.mjs
 .env.production
 
 .next
+
+# Sidecar 本地库（相对仓库根目录；仅对「未跟踪」文件生效，已入库需 git rm --cached）
 apps/sidecar/data/ai-agent.sqlite
