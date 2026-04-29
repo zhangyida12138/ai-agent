@@ -1,4 +1,4 @@
-export const CHAT_SYNC_CHANNEL = 'ai-agent-chat-sync';
+export const CHAT_SYNC_CHANNEL = 'liefree-chat-sync';
 
 export type ChatSyncPayload =
   | { type: 'conversations-changed' }

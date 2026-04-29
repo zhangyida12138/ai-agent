@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BRAND_TITLE, STORAGE_THEME_KEY, STORAGE_THEME_KEY_LEGACY } from '../config/brand';
 import { ConversationSidebar } from '../components/layout/conversation-sidebar';
 import { ChatView } from '../components/chat/chat-view';
 import { KnowledgeIngestCard } from '../components/knowledge/knowledge-ingest-card';
@@ -41,7 +42,7 @@ export function AppLayout() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [isProfileEditing, setIsProfileEditing] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('ai-agent-theme');
+    const saved = localStorage.getItem(STORAGE_THEME_KEY) || localStorage.getItem(STORAGE_THEME_KEY_LEGACY);
     return saved === 'light' ? 'light' : 'dark';
   });
   const importChatInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,7 +92,7 @@ export function AppLayout() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('ai-agent-theme', theme);
+    localStorage.setItem(STORAGE_THEME_KEY, theme);
   }, [theme]);
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export function AppLayout() {
     <div className={`app-shell ${styles.shell}`}>
       {sidebarCollapsed ? (
         <div className={styles.sidebarCollapsed}>
-          <img className={styles.collapsedBrandIcon} src="/icon.svg" alt="智能助手图标" title="智能助手" />
+          <img className={styles.collapsedBrandIcon} src="/icon.svg" alt={`${BRAND_TITLE} 图标`} title={BRAND_TITLE} />
           <button className={`wx-btn ghost ${styles.expandBtn}`} onClick={() => setSidebarCollapsed(false)} title="展开侧栏">
             <span aria-hidden>▶</span>
           </button>
@@ -162,7 +163,6 @@ export function AppLayout() {
         </div>
       ) : (
         <ConversationSidebar
-          theme={theme}
           userName={user?.username || ''}
           displayName={user?.displayName || ''}
           avatarData={user?.avatarData || null}

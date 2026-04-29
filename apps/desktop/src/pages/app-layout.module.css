@@ -111,18 +111,73 @@
 .sidebarBrand {
   border: 1px solid var(--panel-border-soft);
   border-radius: 12px;
-  overflow: hidden;
+  padding: 10px 12px;
   background: rgba(10, 18, 34, 0.45);
 }
 
-.sidebarBrandLogo {
-  display: block;
-  width: 100%;
-  height: auto;
+.sidebarBrandInner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sidebarBrandMark {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  object-fit: contain;
+}
+
+.sidebarBrandText {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebarBrandNameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  line-height: 1.2;
+}
+
+.sidebarBrandEn {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--neon-blue);
+  text-shadow: var(--glow-shadow);
+  letter-spacing: -0.02em;
+}
+
+.sidebarBrandZh {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.92;
+}
+
+.sidebarBrandSlogan {
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #b8d4e8;
+  word-break: break-word;
 }
 
 :global(:root[data-theme='light']) .sidebarBrand {
   background: #ffffff;
+}
+
+:global(:root[data-theme='light']) .sidebarBrandSlogan {
+  color: #3d5a73;
 }
 
 .userBadge {

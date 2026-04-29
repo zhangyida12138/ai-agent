@@ -1,4 +1,5 @@
 import React from 'react';
+import { BRAND_EN, BRAND_SLOGAN_EN, BRAND_ZH_SPACE } from '../../config/brand';
 import type { Conversation } from '../../modules/chat/use-chat-module';
 import styles from '../../pages/app-layout.module.css';
 import { formatDisplayDateTime } from '../../utils/datetime';
@@ -22,7 +23,6 @@ export function ConversationSidebar(props: {
   onRenameBlur: (id: string) => Promise<void>;
   onRenameCancel: () => void;
   onToggleCollapse: () => void;
-  theme: 'dark' | 'light';
 }) {
   const {
     userName,
@@ -41,17 +41,21 @@ export function ConversationSidebar(props: {
     setRenamingTitle,
     onRenameBlur,
     onRenameCancel,
-    onToggleCollapse,
-    theme
+    onToggleCollapse
   } = props;
   return (
     <div className={styles.sidebar}>
       <div className={styles.sidebarBrand}>
-        <img
-          className={styles.sidebarBrandLogo}
-          src={theme === 'light' ? '/logo-light.svg' : '/logo-dark.svg'}
-          alt="智能助手标志"
-        />
+        <div className={styles.sidebarBrandInner}>
+          <img className={styles.sidebarBrandMark} src="/icon.svg" alt="" width={44} height={44} />
+          <div className={styles.sidebarBrandText}>
+            <div className={styles.sidebarBrandNameLine}>
+              <span className={styles.sidebarBrandEn}>{BRAND_EN}</span>
+              <span className={styles.sidebarBrandZh}>{BRAND_ZH_SPACE}</span>
+            </div>
+            <p className={styles.sidebarBrandSlogan}>{BRAND_SLOGAN_EN}</p>
+          </div>
+        </div>
       </div>
       <div className={styles.sidebarHeader}>
         <button className="wx-btn primary" onClick={onNew}>新建会话</button>

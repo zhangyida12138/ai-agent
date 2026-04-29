@@ -1,24 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-label="智能助手深色标志">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" role="img" aria-label="LieFree 无谎空间 标志">
   <defs>
-    <linearGradient id="bgDark" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0b1220" />
-      <stop offset="55%" stop-color="#132b57" />
-      <stop offset="100%" stop-color="#1d4ed8" />
-    </linearGradient>
-    <linearGradient id="lineDark" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#7dd3fc" />
-      <stop offset="100%" stop-color="#22d3ee" />
+    <linearGradient id="markBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
     </linearGradient>
   </defs>
-  <rect x="20" y="40" width="240" height="240" rx="56" fill="url(#bgDark)" />
-  <path d="M140 90l62 36v72l-62 36-62-36v-72z" fill="none" stroke="url(#lineDark)" stroke-width="9" stroke-linejoin="round" />
-  <path d="M140 122v80M106 142l34 20 34-20M106 182l34 20 34-20" fill="none" stroke="#e0f2fe" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="140" cy="90" r="7" fill="#22d3ee" />
-  <circle cx="202" cy="126" r="6" fill="#67e8f9" />
-  <circle cx="202" cy="198" r="6" fill="#67e8f9" />
-  <circle cx="140" cy="234" r="7" fill="#22d3ee" />
-  <circle cx="78" cy="198" r="6" fill="#67e8f9" />
-  <circle cx="78" cy="126" r="6" fill="#67e8f9" />
-  <text x="320" y="156" fill="#e2e8f0" font-family="Microsoft YaHei,PingFang SC,Segoe UI,Arial,sans-serif" font-size="84" font-weight="700">智能助手</text>
-  <text x="324" y="220" fill="#94a3b8" font-family="Microsoft YaHei,PingFang SC,Segoe UI,Arial,sans-serif" font-size="36" font-weight="500">本地优先智能系统</text>
+  <g transform="translate(24,40) scale(0.42)">
+    <rect width="512" height="512" rx="112" fill="url(#markBg)" />
+    <path
+      d="M256 88 L380 148 V280 Q380 360 256 416 Q132 360 132 280 V148 Z"
+      fill="none"
+      stroke="#64748b"
+      stroke-width="14"
+      stroke-linejoin="round"
+    />
+    <path d="M168 268 L236 336 L360 196" fill="none" stroke="#22c55e" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="0" y="472" width="512" height="40" fill="#0066cc" />
+  </g>
+  <text x="300" y="128" fill="#f8fafc" font-family="Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="72" font-weight="700">LieFree</text>
+  <text x="300" y="198" fill="#cbd5e1" font-family="PingFang SC,Microsoft YaHei,Segoe UI,sans-serif" font-size="44" font-weight="600">无谎空间</text>
+  <text x="300" y="252" fill="#94a3b8" font-family="Segoe UI,PingFang SC,sans-serif" font-size="24" font-weight="400">Local brain, no lies.</text>
+  <text x="300" y="288" fill="#64748b" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="22" font-weight="400">本地大脑，拒绝谎言</text>
 </svg>

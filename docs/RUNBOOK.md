@@ -82,6 +82,9 @@ server {
   root /var/www/ai-agent/desktop;
   index index.html;
 
+  # 知识库上传等接口 JSON 较大；省略时 Nginx 默认约 1m，会返回 413 HTML 错误页
+  client_max_body_size 32m;
+
   location /api/ {
     proxy_pass http://127.0.0.1:3001/;
     proxy_http_version 1.1;
@@ -100,6 +103,8 @@ server {
 另可复制仓库内 `deploy/nginx-notgonnalieplz.site.conf` 作为起点。
 
 注意：`proxy_pass` 末尾带 `/` 时，会把 `/api/foo` 转成后端 `/foo`，与前端 `VITE_SIDECAR_URL=/api`（请求 `/api/conversations` → 后端 `/conversations`）一致。
+
+**若知识库上传报 HTTP 413 / 前端提示「接口未返回 JSON」**：多为反代未放行大请求体。除上述 `client_max_body_size` 外，Sidecar 进程可通过环境变量 `SIDECAR_BODY_LIMIT`（默认 `32mb`）与之一致或略小；修改 Nginx 后务必 `sudo nginx -t && sudo systemctl reload nginx`。
 
 构建前在仓库根目录准备 `.env.production`，至少包含：
 
