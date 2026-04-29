@@ -11,8 +11,10 @@ const nodeRequire = createRequire(__filename);
 
 function resolveSqlJsDistDir(): string {
   try {
-    const wasmFile = nodeRequire.resolve('sql.js/dist/sql-wasm.wasm');
-    return path.dirname(wasmFile);
+    // `sql.js` main entry points to `dist/sql-wasm.js`; derive dist dir from it.
+    // This avoids package "exports" restrictions on deep subpaths in some setups.
+    const sqlJsEntry = nodeRequire.resolve('sql.js');
+    return path.dirname(sqlJsEntry);
   } catch {
     try {
       const pkgJson = nodeRequire.resolve('sql.js/package.json');
