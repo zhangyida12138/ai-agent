@@ -1,11 +1,28 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import initSqlJs from 'sql.js';
 import { randomUUID } from 'crypto';
 import crypto from 'node:crypto';
 import type { ChatMessage, Conversation, Evidence, IngestTextRequest, IngestTextResponse } from '@ai-agent/shared';
 
 const DEFAULT_SQLITE_PATH = './data/ai-agent.sqlite';
+const nodeRequire = createRequire(__filename);
+
+function resolveSqlJsDistDir(): string {
+  try {
+    const wasmFile = nodeRequire.resolve('sql.js/dist/sql-wasm.wasm');
+    return path.dirname(wasmFile);
+  } catch {
+    try {
+      const pkgJson = nodeRequire.resolve('sql.js/package.json');
+      return path.join(path.dirname(pkgJson), 'dist');
+    } catch {
+      // Fallback for unusual runtimes; keeps previous behavior as last resort.
+      return path.join(process.cwd(), 'node_modules', 'sql.js', 'dist');
+    }
+  }
+}
 
 type CreateConversationRow = Conversation;
 type ConversationExportBundle = {
@@ -46,8 +63,9 @@ export class ChatHistoryStore {
       const dir = path.dirname(absPath);
       fs.mkdirSync(dir, { recursive: true });
 
+      const sqlJsDistDir = resolveSqlJsDistDir();
       const SQL = await initSqlJs({
-        locateFile: (file: string) => path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', file)
+        locateFile: (file: string) => path.join(sqlJsDistDir, file)
       });
 
       const exists = fs.existsSync(absPath);
