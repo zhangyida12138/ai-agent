@@ -33,11 +33,12 @@ export function useKnowledgeModule() {
     setKnowledgeStats(resp.data as any);
   }
 
-  async function refreshKnowledgeDocs() {
-    setKnowledgeLoading(true);
+  /** silent：后台刷新（定时、广播、保存后同步）不置 loading，避免列表反复出现「加载中...」 */
+  async function refreshKnowledgeDocs(silent = false) {
+    if (!silent) setKnowledgeLoading(true);
     const resp = await listKnowledgeDocuments();
     if (!resp.ok) {
-      setKnowledgeLoading(false);
+      if (!silent) setKnowledgeLoading(false);
       setError(`${resp.code}: ${resp.message}`);
       return [];
     }
@@ -50,7 +51,7 @@ export function useKnowledgeModule() {
       const keep = prev.filter((id) => allIds.includes(id));
       return keep.length > 0 ? keep : allIds;
     });
-    setKnowledgeLoading(false);
+    if (!silent) setKnowledgeLoading(false);
     return docs as KnowledgeDocument[];
   }
 
@@ -63,11 +64,11 @@ export function useKnowledgeModule() {
   useEffect(() => {
     const unsub = subscribeKnowledgeSync(() => {
       void refreshKnowledgeRef.current();
-      void refreshKnowledgeDocsRef.current();
+      void refreshKnowledgeDocsRef.current(true);
     });
     const poll = window.setInterval(() => {
       void refreshKnowledgeRef.current();
-      void refreshKnowledgeDocsRef.current();
+      void refreshKnowledgeDocsRef.current(true);
     }, 12000);
     return () => {
       unsub();
@@ -87,7 +88,7 @@ export function useKnowledgeModule() {
       setKnowledgeTitle('');
       setKnowledgeText('');
       await refreshKnowledge();
-      await refreshKnowledgeDocs();
+      await refreshKnowledgeDocs(true);
       broadcastKnowledgeSync({ type: 'knowledge-changed' });
     }
     setIngesting(false);
@@ -108,7 +109,7 @@ export function useKnowledgeModule() {
     if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
     else {
       await refreshKnowledge();
-      await refreshKnowledgeDocs();
+      await refreshKnowledgeDocs(true);
       broadcastKnowledgeSync({ type: 'knowledge-changed' });
     }
     setSavingDoc(false);
@@ -125,7 +126,7 @@ export function useKnowledgeModule() {
       setEditingTitle('');
       setEditingText('');
       await refreshKnowledge();
-      const docs = await refreshKnowledgeDocs();
+      const docs = await refreshKnowledgeDocs(true);
       broadcastKnowledgeSync({ type: 'knowledge-changed' });
       const next = docs.find((d) => d.id !== deletingId) || docs[0];
       if (next) await openDoc(next.id);

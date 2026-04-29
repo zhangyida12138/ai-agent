@@ -122,6 +122,15 @@ export function useChatModule() {
     }, TYPING_INTERVAL_MS);
   }
 
+  /** 流结束后须等打字队列播完再拉消息，否则 refresh 会用服务端全文覆盖，首条/新会话会像「一次性出现」 */
+  async function waitUntilAssistantTypingFinishes(maxWaitMs = 120_000) {
+    const t0 = Date.now();
+    while (typingAssistantIdRef.current !== null) {
+      if (Date.now() - t0 > maxWaitMs) return;
+      await new Promise((r) => setTimeout(r, 16));
+    }
+  }
+
   useEffect(() => () => resetTypingState(), []);
 
   const activeIdRef = useRef(activeId);
@@ -280,6 +289,7 @@ export function useChatModule() {
     }
     await refreshConversations();
     if (done) {
+      await waitUntilAssistantTypingFinishes();
       await refreshMessages(conversationId);
     }
     broadcastChatSync({ type: 'messages-changed', conversationId });
