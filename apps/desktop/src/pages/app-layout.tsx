@@ -9,6 +9,7 @@ import { useAuth } from '../modules/auth/auth';
 import { useRouter } from '../modules/routing/router';
 import styles from './app-layout.module.css';
 import { updateTheme } from '../api';
+import { PageAgentHost } from '../page-agent/page-agent-host';
 
 export function AppLayout() {
   const MAX_AVATAR_BYTES = 1024 * 1024; // 1MB
@@ -113,6 +114,7 @@ export function AppLayout() {
 
   return (
     <div className={`app-shell ${styles.shell}`}>
+      <PageAgentHost enabled />
       {sidebarCollapsed ? (
         <div className={styles.sidebarCollapsed}>
           <img className={styles.collapsedBrandIcon} src="/icon.svg" alt="智能助手图标" title="智能助手" />

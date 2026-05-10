@@ -3,7 +3,8 @@ export type Envelope<T> =
   | { ok: false; code: string; message: string; retryable: boolean; nextAction?: string };
 
 const SIDECAR_URL = import.meta.env.VITE_SIDECAR_URL || '/api';
-const AUTH_TOKEN_KEY = 'ai-agent-auth-token';
+/** localStorage 中会话 token 的 key（供 Page Agent 等与 api 共用） */
+export const AUTH_TOKEN_KEY = 'ai-agent-auth-token';
 
 async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);

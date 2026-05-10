@@ -13,6 +13,9 @@ importers:
       mammoth:
         specifier: ^1.9.0
         version: 1.12.0
+      page-agent:
+        specifier: ^1.8.1
+        version: 1.8.1(zod@4.4.3)
       pdfjs-dist:
         specifier: ^5.6.205
         version: 5.6.205
@@ -25,6 +28,9 @@ importers:
       tesseract.js:
         specifier: ^7.0.0
         version: 7.0.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/react':
         specifier: '*'
@@ -59,6 +65,9 @@ importers:
       '@nestjs/platform-express':
         specifier: '*'
         version: 11.1.17(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
       dotenv:
         specifier: ^17.4.0
         version: 17.4.0
@@ -78,9 +87,6 @@ importers:
       '@types/node':
         specifier: '*'
         version: 25.5.0
-      cross-env:
-        specifier: ^7.0.3
-        version: 7.0.3
       tsx:
         specifier: '*'
         version: 4.21.0
@@ -391,6 +397,22 @@ packages:
   '@oxc-project/types@0.122.0':
     resolution: {integrity: sha512-oLAl5kBpV4w69UtFZ9xqcmTi+GENWOcPF7FCrczTiBbmC0ibXxCwyvZGbO39rCVEuLGAZM84DH0pUIyyv/YJzA==}
 
+  '@page-agent/core@1.8.1':
+    resolution: {integrity: sha512-ZwsJF+L1JT5k6FJR/5mJAsXce8Z7X9usj6NQmh9jnB+c1mUwCBCGeSa5G9AcdBVp5JNHWGgDU3J3QhreCwNVNA==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@page-agent/llms@1.8.1':
+    resolution: {integrity: sha512-gSACYJBKJSp6doetwZyhDFPUwg2Vifbo3I99iEoVT4mTtT7QXFThej+5H++afhN63BCXR4B56+HFfmgRIV0+Zg==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@page-agent/page-controller@1.8.1':
+    resolution: {integrity: sha512-0GDa+54i/Oc+AJ+Sdbz7MTjW8G3ctFhouRhXUjyB0Hkh29hB7Zw8tGtEqwpWHMopPtqu/icfAApTadAq+4psmg==}
+
+  '@page-agent/ui@1.8.1':
+    resolution: {integrity: sha512-xfRKq3wPV6Zzm+4sJ5R/BnTibiZxY34QzO4iL+QQJyLsmi2DbLH4eOz101l2YhgXQukvLxs3p+tSF/zNQyshEw==}
+
   '@rolldown/binding-android-arm64@1.0.0-rc.11':
     resolution: {integrity: sha512-SJ+/g+xNnOh6NqYxD0V3uVN4W3VfnrGsC9/hoglicgTNfABFG9JjISvkkU0dNY84MNHLWyOgxP9v9Y9pX4S7+A==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -561,6 +583,9 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
+  ai-motion@0.4.8:
+    resolution: {integrity: sha512-9nQVjf8lrYQWSW0sZdb9bES4x8Ei1w9C0S62po2KvRbMjslmjm0WMeszyW771SEauDnu4YGWqurLZ/gCkCTosQ==}
+
   append-field@1.0.0:
     resolution: {integrity: sha512-klpgFSWLW1ZEs8svjfb7g4qWY0YS5imI82dTg+QahUvJ8YqAY0P10Uk8tTyh9ZGuYEZEMaeJYCF5BFuX552hsw==}
 
@@ -598,6 +623,10 @@ packages:
   call-bound@1.0.4:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
+
+  chalk@5.6.2:
+    resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
   concat-stream@2.0.0:
     resolution: {integrity: sha512-MWufYdFw53ccGjCA+Ol7XJYpAlW6/prSMzuPOTRnJGcGzuhLn4Scrz7qf6o8bROZ514ltazcIFJZevcfbo0x7A==}
@@ -981,6 +1010,11 @@ packages:
   option@0.2.4:
     resolution: {integrity: sha512-pkEqbDyl8ou5cpq+VsnQbe/WlEy5qS7xPzMS1U55OCG9KPvwFD46zDbxQIj3egJSFc3D+XhYOPUzz49zQAVy7A==}
 
+  page-agent@1.8.1:
+    resolution: {integrity: sha512-R4H2l+iY/zmDe8FM6FENFP7eR2Nwy9KZNQ+ytElqa5X3W2Z5vqRlxTIhQGgLkUhbuJ6lR+uMm3BTIkg0g1JYlw==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
   pako@1.0.11:
     resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
 
@@ -1285,6 +1319,9 @@ packages:
   zlibjs@0.3.1:
     resolution: {integrity: sha512-+J9RrgTKOmlxFSDHo0pI1xM6BLVUv+o0ZT9ANtCxGkjIVCCUdx9alUF8Gm+dGLKbkkkidWIHFDZHDMpfITt4+w==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@borewit/text-codec@0.2.2': {}
@@ -1484,6 +1521,24 @@ snapshots:
 
   '@oxc-project/types@0.122.0': {}
 
+  '@page-agent/core@1.8.1(zod@4.4.3)':
+    dependencies:
+      '@page-agent/llms': 1.8.1(zod@4.4.3)
+      '@page-agent/page-controller': 1.8.1
+      chalk: 5.6.2
+      zod: 4.4.3
+
+  '@page-agent/llms@1.8.1(zod@4.4.3)':
+    dependencies:
+      chalk: 5.6.2
+      zod: 4.4.3
+
+  '@page-agent/page-controller@1.8.1':
+    dependencies:
+      ai-motion: 0.4.8
+
+  '@page-agent/ui@1.8.1': {}
+
   '@rolldown/binding-android-arm64@1.0.0-rc.11':
     optional: true
 
@@ -1610,6 +1665,8 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
+  ai-motion@0.4.8: {}
+
   append-field@1.0.0: {}
 
   argparse@1.0.10:
@@ -1653,6 +1710,8 @@ snapshots:
     dependencies:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
+
+  chalk@5.6.2: {}
 
   concat-stream@2.0.0:
     dependencies:
@@ -2024,6 +2083,15 @@ snapshots:
 
   option@0.2.4: {}
 
+  page-agent@1.8.1(zod@4.4.3):
+    dependencies:
+      '@page-agent/core': 1.8.1(zod@4.4.3)
+      '@page-agent/llms': 1.8.1(zod@4.4.3)
+      '@page-agent/page-controller': 1.8.1
+      '@page-agent/ui': 1.8.1
+      chalk: 5.6.2
+      zod: 4.4.3
+
   pako@1.0.11: {}
 
   parseurl@1.3.3: {}
@@ -2328,3 +2396,5 @@ snapshots:
   xmlbuilder@10.1.1: {}
 
   zlibjs@0.3.1: {}
+
+  zod@4.4.3: {}
