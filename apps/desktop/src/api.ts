@@ -3,8 +3,12 @@ export type Envelope<T> =
   | { ok: false; code: string; message: string; retryable: boolean; nextAction?: string };
 
 const SIDECAR_URL = import.meta.env.VITE_SIDECAR_URL || '/api';
+<<<<<<< HEAD
 /** localStorage 中会话 token 的 key（供 Page Agent 等与 api 共用） */
 export const AUTH_TOKEN_KEY = 'ai-agent-auth-token';
+=======
+const AUTH_TOKEN_KEY = 'liefree-auth-token';
+>>>>>>> 1cee2820d9e304b50bfcfcf3e00734633a5b27f7
 
 async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -16,6 +20,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>
   const contentType = res.headers.get('content-type') || '';
   const isJson = contentType.toLowerCase().includes('application/json');
   const raw = await res.text();
+
+  if (res.status === 413) {
+    return {
+      ok: false,
+      code: 'REQUEST_ENTITY_TOO_LARGE',
+      message:
+        '上传内容体积过大',
+      retryable: false,
+      nextAction: '缩小上传文件，或请管理员调大反代与 Sidecar 请求体限制'
+    };
+  }
 
   if (!raw) {
     return {
@@ -107,6 +122,14 @@ export async function streamChat(
     signal: options?.signal
   });
   if (!res.ok || !res.body) {
+    if (res.status === 413) {
+      handlers.onError({
+        code: 'REQUEST_ENTITY_TOO_LARGE',
+        message:
+          '请求体过大（HTTP 413）。请调大反代 client_max_body_size（建议 ≥32m）或缩小对话上下文后再试。'
+      });
+      return;
+    }
     handlers.onError({ code: 'STREAM_START_FAILED', message: `流式请求失败: HTTP ${res.status}` });
     return;
   }

@@ -21,6 +21,71 @@ function baseTitleFromFileName(fileName: string): string {
   return n.replace(/\.(txt|docx|pdf)$/i, '') || n;
 }
 
+function decodeBytes(bytes: Uint8Array, encoding: string): string | null {
+  try {
+    return new TextDecoder(encoding, { fatal: false }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function scoreDecodedText(text: string): number {
+  if (!text) return -Infinity;
+  const len = text.length;
+  if (len === 0) return -Infinity;
+
+  let replacement = 0;
+  let printable = 0;
+  let suspicious = 0;
+  for (const ch of text) {
+    const code = ch.charCodeAt(0);
+    if (ch === '\uFFFD') replacement += 1;
+    if (
+      ch === '\n' ||
+      ch === '\r' ||
+      ch === '\t' ||
+      (code >= 0x20 && code <= 0x7e) ||
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3000 && code <= 0x303f) ||
+      (code >= 0xff00 && code <= 0xffef)
+    ) {
+      printable += 1;
+    } else if (code < 0x20 && ch !== '\n' && ch !== '\r' && ch !== '\t') {
+      suspicious += 1;
+    }
+  }
+
+  // Heuristic: penalize replacement/control chars, reward printable ratio.
+  return printable / len - replacement * 2 - suspicious * 0.2;
+}
+
+function decodeTxtFile(bytes: Uint8Array): string {
+  // BOM first
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(bytes.subarray(3));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  }
+
+  const candidates = ['utf-8', 'gb18030', 'utf-16le', 'utf-16be'];
+  let best = '';
+  let bestScore = -Infinity;
+  for (const enc of candidates) {
+    const decoded = decodeBytes(bytes, enc);
+    if (decoded == null) continue;
+    const s = scoreDecodedText(decoded);
+    if (s > bestScore) {
+      bestScore = s;
+      best = decoded;
+    }
+  }
+  return best || new TextDecoder('utf-8').decode(bytes);
+}
+
 function textItemToString(items: Array<{ str?: string; hasEOL?: boolean } | unknown>): string {
   const parts: string[] = [];
   for (const raw of items) {
@@ -115,7 +180,8 @@ export async function parseKnowledgeUploadFile(file: File): Promise<{ title: str
   const title = baseTitleFromFileName(name);
 
   if (lower.endsWith('.txt') || file.type === 'text/plain') {
-    const text = (await file.text()).replace(/\u0000/g, '').trim();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const text = decodeTxtFile(bytes).replace(/\u0000/g, '').trim();
     if (!text) throw new Error('TXT 文件无有效文本内容');
     return { title, text };
   }

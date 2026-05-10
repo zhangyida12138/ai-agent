@@ -74,6 +74,33 @@
   background: rgba(0, 229, 255, 0.2);
 }
 
+/* 浅色：收起侧栏的会话首字按钮与展开侧栏列表项配色一致 */
+:global(:root[data-theme='light']) .collapsedConversationBtn {
+  background: #ffffff;
+  border-color: transparent;
+  color: #111111;
+  box-shadow: none;
+}
+
+:global(:root[data-theme='light']) .collapsedConversationBtn:hover {
+  background: #f5f8ff;
+  border-color: transparent;
+  color: #111111;
+  box-shadow: inset 0 0 0 1px #d3ddff;
+}
+
+:global(:root[data-theme='light']) .collapsedConversationBtnActive {
+  background: #edf2ff;
+  border-color: transparent;
+  color: #315efb;
+  box-shadow: inset 0 0 0 1px #bcd0ff;
+}
+
+:global(:root[data-theme='light']) .collapsedBrandIcon {
+  border-color: rgba(17, 24, 39, 0.1);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
 .sidebarHeader {
   display: flex;
   justify-content: space-between;
@@ -84,18 +111,73 @@
 .sidebarBrand {
   border: 1px solid var(--panel-border-soft);
   border-radius: 12px;
-  overflow: hidden;
+  padding: 10px 12px;
   background: rgba(10, 18, 34, 0.45);
 }
 
-.sidebarBrandLogo {
-  display: block;
-  width: 100%;
-  height: auto;
+.sidebarBrandInner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sidebarBrandMark {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  object-fit: contain;
+}
+
+.sidebarBrandText {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebarBrandNameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  line-height: 1.2;
+}
+
+.sidebarBrandEn {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--neon-blue);
+  text-shadow: var(--glow-shadow);
+  letter-spacing: -0.02em;
+}
+
+.sidebarBrandZh {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.92;
+}
+
+.sidebarBrandSlogan {
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #b8d4e8;
+  word-break: break-word;
 }
 
 :global(:root[data-theme='light']) .sidebarBrand {
   background: #ffffff;
+}
+
+:global(:root[data-theme='light']) .sidebarBrandSlogan {
+  color: #3d5a73;
 }
 
 .userBadge {
@@ -241,6 +323,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.collapsedNewChatIcon {
+  display: block;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
+  margin-top: -1px;
 }
 
 .main {
@@ -408,9 +498,90 @@
   align-items: center;
 }
 
-.knowledgeTitleInput {
+.knowledgeTitleClearWrap {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+.knowledgeTitleInput {
+  width: 100%;
+  min-width: 0;
+  padding-right: 30px;
+  box-sizing: border-box;
+}
+
+.knowledgeInputClearBtn {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(215, 248, 255, 0.55);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.knowledgeTitleClearWrap .knowledgeInputClearBtn {
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+}
+
+.knowledgeInputClearBtnTextarea {
+  top: 7px;
+  right: 8px;
+  transform: none;
+}
+
+.knowledgeInputClearBtn:hover {
+  color: var(--neon-blue);
+  background: rgba(0, 229, 255, 0.12);
+}
+
+.knowledgeInputClearBtn:focus-visible {
+  outline: 2px solid rgba(0, 229, 255, 0.45);
+  outline-offset: 1px;
+}
+
+.knowledgeInputClearGlyph {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+  user-select: none;
+  margin-top: -1px;
+}
+
+:global(:root[data-theme='light']) .knowledgeInputClearBtn {
+  color: rgba(17, 24, 39, 0.35);
+}
+
+:global(:root[data-theme='light']) .knowledgeInputClearBtn:hover {
+  color: #315efb;
+  background: rgba(49, 94, 251, 0.08);
+}
+
+.knowledgeTextareaClearWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 88px;
+  display: flex;
+}
+
+.knowledgeTextareaClearWrap .knowledgeIngestTextarea {
+  width: 100%;
+  flex: 1;
+  min-height: 88px;
+  padding-right: 30px;
+  box-sizing: border-box;
 }
 
 .knowledgeTextRow {
@@ -629,10 +800,79 @@
   border-color: #dfe3ea;
 }
 
+/* 聊天主区：标题 + 消息列 + 输入区；复制提示在此区域内水平垂直居中 */
+.chatViewShell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.copyToastOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.chatMainColumn {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
 .messagePanel {
   flex: 1;
   overflow: auto;
   position: relative;
+  min-height: 0;
+}
+
+.composerGrip {
+  flex-shrink: 0;
+  height: 8px;
+  margin: 2px 0 0;
+  border-radius: 6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  touch-action: none;
+}
+
+.composerGrip::after {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 229, 255, 0.28);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.12);
+}
+
+.composerGrip:hover::after {
+  background: rgba(0, 229, 255, 0.45);
+}
+
+:global(:root[data-theme='light']) .composerGrip::after {
+  background: rgba(76, 125, 255, 0.35);
+  box-shadow: 0 0 0 1px rgba(76, 125, 255, 0.15);
+}
+
+.composerTextarea {
+  min-height: 72px;
+  max-height: 240px;
+  resize: none;
+  overflow-y: auto;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
 }
 
 .msg {
@@ -803,7 +1043,9 @@
 
 .composer {
   display: flex;
+  align-items: flex-end;
   gap: 8px;
+  flex-shrink: 0;
   padding: 10px;
   border-radius: 16px;
   border: 1px solid var(--panel-border-soft);
@@ -958,62 +1200,11 @@
   gap: 8px;
 }
 
-.brandShowcase {
-  border: 1px solid var(--panel-border-soft);
-  border-radius: 14px;
-  background: var(--panel-bg);
-  padding: 12px;
+.profileHeaderActions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
-}
-
-.brandShowcaseTitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.brandLogoHover {
-  position: relative;
-  width: min(720px, 100%);
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid var(--panel-border-soft);
-  background: rgba(10, 18, 34, 0.45);
-}
-
-.brandLogoHover img {
-  display: block;
-  width: 100%;
-  height: auto;
-  transition: opacity 0.28s ease, transform 0.28s ease, filter 0.28s ease;
-}
-
-.brandLogoBase {
-  opacity: 1;
-}
-
-.brandLogoActive {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transform: scale(1.02);
-  filter: saturate(1.15) drop-shadow(0 0 10px rgba(103, 232, 249, 0.3));
-}
-
-.brandLogoHover:hover .brandLogoBase {
-  opacity: 0;
-  transform: scale(1.01);
-}
-
-.brandLogoHover:hover .brandLogoActive {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.brandLogoMeta {
-  font-size: 12px;
-  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .profileField {
@@ -1105,19 +1296,25 @@
 }
 
 .copyToast {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(12, 27, 54, 0.62);
+  position: relative;
+  background: rgba(12, 27, 54, 0.92);
   color: #d6f6ff;
   border: 1px solid rgba(0, 229, 255, 0.35);
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: 8px 14px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  z-index: 20;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   pointer-events: none;
+  max-width: min(360px, calc(100% - 32px));
+  text-align: center;
+}
+
+:global(:root[data-theme='light']) .copyToast {
+  background: #ffffff;
+  color: #111111;
+  border-color: #dfe3ea;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .successToast {

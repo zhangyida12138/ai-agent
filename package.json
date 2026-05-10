@@ -1,5 +1,6 @@
 {
   "name": "ai-agent",
+  "description": "LieFree（无谎空间）— Local brain, no lies.",
   "private": true,
   "packageManager": "pnpm@10.15.1",
   "base": "./",

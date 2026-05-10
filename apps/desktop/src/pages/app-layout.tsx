@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BRAND_TITLE, STORAGE_THEME_KEY, STORAGE_THEME_KEY_LEGACY } from '../config/brand';
 import { ConversationSidebar } from '../components/layout/conversation-sidebar';
 import { ChatView } from '../components/chat/chat-view';
 import { KnowledgeIngestCard } from '../components/knowledge/knowledge-ingest-card';
@@ -42,7 +43,7 @@ export function AppLayout() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [isProfileEditing, setIsProfileEditing] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('ai-agent-theme');
+    const saved = localStorage.getItem(STORAGE_THEME_KEY) || localStorage.getItem(STORAGE_THEME_KEY_LEGACY);
     return saved === 'light' ? 'light' : 'dark';
   });
   const importChatInputRef = useRef<HTMLInputElement | null>(null);
@@ -53,16 +54,17 @@ export function AppLayout() {
     kb.refreshKnowledgeDocs().then(() => undefined);
   }, []);
 
-  // 仅切换会话时拉取消息。不要在 loading 结束时刷新：中断后服务端可能尚未写入助手行，
-  // refresh 会用不含该条的结果覆盖本地，导致「中断后气泡消失」。
+  // 仅切换会话时拉取消息。流式生成中（loading）不要拉：否则会覆盖本地打字机状态，新会话首条会像一次性刷出。
+  // 也不要在 loading 结束时自动刷新：中断后服务端可能尚未写入助手行，refresh 会冲掉本地气泡。
   useEffect(() => {
     if (!chat.activeId) return;
-    chat.refreshMessages(chat.activeId);
+    if (chat.loading) return;
+    void chat.refreshMessages(chat.activeId);
   }, [chat.activeId]);
 
   useEffect(() => {
     if (!chat.toast) return;
-    const timer = window.setTimeout(() => chat.setToast(''), 1400);
+    const timer = window.setTimeout(() => chat.setToast(''), 2400);
     return () => window.clearTimeout(timer);
   }, [chat.toast]);
 
@@ -91,7 +93,7 @@ export function AppLayout() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('ai-agent-theme', theme);
+    localStorage.setItem(STORAGE_THEME_KEY, theme);
   }, [theme]);
 
   useEffect(() => {
@@ -117,9 +119,22 @@ export function AppLayout() {
       <PageAgentHost enabled />
       {sidebarCollapsed ? (
         <div className={styles.sidebarCollapsed}>
-          <img className={styles.collapsedBrandIcon} src="/icon.svg" alt="智能助手图标" title="智能助手" />
+          <img className={styles.collapsedBrandIcon} src="/icon.svg" alt={`${BRAND_TITLE} 图标`} title={BRAND_TITLE} />
           <button className={`wx-btn ghost ${styles.expandBtn}`} onClick={() => setSidebarCollapsed(false)} title="展开侧栏">
             <span aria-hidden>▶</span>
+          </button>
+          <button
+            type="button"
+            className={`wx-btn ghost ${styles.expandBtn}`}
+            title="新建会话"
+            onClick={() => {
+              chat.newConversation();
+              navigate('/chat');
+            }}
+          >
+            <span aria-hidden className={styles.collapsedNewChatIcon}>
+              +
+            </span>
           </button>
           <div className={styles.collapsedConversationList}>
             {chat.conversations.slice(0, 12).map((c) => (
@@ -150,7 +165,6 @@ export function AppLayout() {
         </div>
       ) : (
         <ConversationSidebar
-          theme={theme}
           userName={user?.username || ''}
           displayName={user?.displayName || ''}
           avatarData={user?.avatarData || null}
@@ -256,50 +270,64 @@ export function AppLayout() {
           </div>
         ) : (
           <>
-            <div className={styles.brandShowcase}>
-              <div className={styles.brandShowcaseTitle}>品牌 Logo（悬浮查看动态版）</div>
-              <div className={styles.brandLogoHover}>
-                <img
-                  className={styles.brandLogoBase}
-                  src={theme === 'light' ? '/logo-light.svg' : '/logo-dark.svg'}
-                  alt="智能助手标志"
-                />
-                <img className={styles.brandLogoActive} src="/logo-hover.svg" alt="智能助手悬浮标志" />
-              </div>
-              <div className={styles.brandLogoMeta}>另含黑白版：/logo-bw.svg</div>
-            </div>
             <div className={styles.profileHeader}>
               <div className={styles.chatTitle}>个人信息</div>
-              <button
-                className="wx-btn primary"
-                disabled={profileSaving}
-                onClick={async () => {
-                  if (!isProfileEditing) {
-                    setIsProfileEditing(true);
-                    return;
-                  }
-                  try {
-                    setProfileSaving(true);
-                    await updateUserProfile({
-                      displayName: profileName.trim() || null,
-                      age: profileAge.trim() ? Number(profileAge.trim()) : null,
-                      gender: profileGender.trim() || null,
-                      occupation: profileOccupation.trim() || null,
-                      needs: profileNeeds.trim() || null,
-                      avatarData: profileAvatarData,
-                      customFields: profileCustomFields.map((x) => ({ key: x.key.trim(), value: x.value.trim() })).filter((x) => x.key)
-                    });
-                    setIsProfileEditing(false);
-                    setSuccessModal('个人信息保存成功');
-                  } catch (e: any) {
-                    setErrorModal(e?.message || '保存失败，请稍后重试');
-                  } finally {
-                    setProfileSaving(false);
-                  }
-                }}
-              >
-                {isProfileEditing ? (profileSaving ? '保存中...' : '保存') : '编辑'}
-              </button>
+              <div className={styles.profileHeaderActions}>
+                {isProfileEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      className="wx-btn ghost"
+                      disabled={profileSaving}
+                      onClick={() => {
+                        setProfileName(user?.displayName || '');
+                        setProfileAge(user?.age == null ? '' : String(user.age));
+                        setProfileGender(user?.gender || '');
+                        setProfileOccupation(user?.occupation || '');
+                        setProfileNeeds(user?.needs || '');
+                        setProfileCustomFields(Array.isArray(user?.customFields) ? user.customFields : []);
+                        setDraftCustomField({ key: '', value: '' });
+                        setShowDraftCustomField(false);
+                        setProfileAvatarData(user?.avatarData || null);
+                        setIsProfileEditing(false);
+                      }}
+                    >
+                      取消编辑
+                    </button>
+                    <button
+                      type="button"
+                      className="wx-btn primary"
+                      disabled={profileSaving}
+                      onClick={async () => {
+                        try {
+                          setProfileSaving(true);
+                          await updateUserProfile({
+                            displayName: profileName.trim() || null,
+                            age: profileAge.trim() ? Number(profileAge.trim()) : null,
+                            gender: profileGender.trim() || null,
+                            occupation: profileOccupation.trim() || null,
+                            needs: profileNeeds.trim() || null,
+                            avatarData: profileAvatarData,
+                            customFields: profileCustomFields.map((x) => ({ key: x.key.trim(), value: x.value.trim() })).filter((x) => x.key)
+                          });
+                          setIsProfileEditing(false);
+                          setSuccessModal('个人信息保存成功');
+                        } catch (e: any) {
+                          setErrorModal(e?.message || '保存失败，请稍后重试');
+                        } finally {
+                          setProfileSaving(false);
+                        }
+                      }}
+                    >
+                      {profileSaving ? '保存中...' : '保存'}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="wx-btn primary" onClick={() => setIsProfileEditing(true)}>
+                    编辑
+                  </button>
+                )}
+              </div>
             </div>
             <div className={styles.profileCard}>
               <input

@@ -1,4 +1,4 @@
-export const KNOWLEDGE_SYNC_CHANNEL = 'ai-agent-knowledge-sync';
+export const KNOWLEDGE_SYNC_CHANNEL = 'liefree-knowledge-sync';
 
 export type KnowledgeSyncPayload = { type: 'knowledge-changed' };
 

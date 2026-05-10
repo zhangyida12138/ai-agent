@@ -145,7 +145,33 @@ export function KnowledgeIngestCard(props: {
       {collapsed ? null : !compact ? (
         <>
           <div className={`${styles.row} ${styles.knowledgeTitleRow}`}>
-            <input className={`wx-input ${styles.knowledgeTitleInput}`} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="文档标题（必填）" disabled={busy} />
+            <div className={styles.knowledgeTitleClearWrap}>
+              <input
+                className={`wx-input ${styles.knowledgeTitleInput}`}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="文档标题（必填）"
+                disabled={busy}
+              />
+              {!busy && title ? (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className={styles.knowledgeInputClearBtn}
+                  aria-label="清空标题"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTitle('');
+                  }}
+                >
+                  <span aria-hidden className={styles.knowledgeInputClearGlyph}>
+                    ×
+                  </span>
+                </button>
+              ) : null}
+            </div>
             <input
               ref={fileRef}
               type="file"
@@ -161,18 +187,38 @@ export function KnowledgeIngestCard(props: {
             </button>
           </div>
           <div className={styles.knowledgeTextRow}>
-            <textarea
-              className={`wx-input ${styles.knowledgeIngestTextarea} ${textDragActive ? styles.knowledgeIngestTextareaDrop : ''}`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={3}
-              placeholder="粘贴要入库的文本（用于本地检索/回答），或将文件拖入此处上传"
-              disabled={busy}
-              onDragEnter={onTextDragEnter}
-              onDragLeave={onTextDragLeave}
-              onDragOver={onTextDragOver}
-              onDrop={onTextDrop}
-            />
+            <div className={styles.knowledgeTextareaClearWrap}>
+              <textarea
+                className={`wx-input ${styles.knowledgeIngestTextarea} ${textDragActive ? styles.knowledgeIngestTextareaDrop : ''}`}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={3}
+                placeholder="粘贴要入库的文本（用于本地检索/回答），或将文件拖入此处上传"
+                disabled={busy}
+                onDragEnter={onTextDragEnter}
+                onDragLeave={onTextDragLeave}
+                onDragOver={onTextDragOver}
+                onDrop={onTextDrop}
+              />
+              {!busy && text ? (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className={`${styles.knowledgeInputClearBtn} ${styles.knowledgeInputClearBtnTextarea}`}
+                  aria-label="清空正文"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setText('');
+                  }}
+                >
+                  <span aria-hidden className={styles.knowledgeInputClearGlyph}>
+                    ×
+                  </span>
+                </button>
+              ) : null}
+            </div>
             <div className={styles.knowledgeUploadAside}>
               <button
                 type="button"

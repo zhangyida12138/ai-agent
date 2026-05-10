@@ -61,8 +61,9 @@ async function bootstrap() {
   if (isProd && process.env.TRUST_PROXY !== '0') {
     app.set('trust proxy', 1);
   }
-  app.useBodyParser('json', { limit: '25mb' });
-  app.useBodyParser('urlencoded', { extended: true, limit: '25mb' });
+  const bodyLimit = process.env.SIDECAR_BODY_LIMIT?.trim() || '32mb';
+  app.useBodyParser('json', { limit: bodyLimit });
+  app.useBodyParser('urlencoded', { extended: true, limit: bodyLimit });
 
   app.enableCors(buildCorsOptions());
 
