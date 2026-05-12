@@ -116,6 +116,27 @@ export function AppLayout() {
 
   return (
     <div className={`app-shell ${styles.shell}`}>
+      <input
+        ref={importChatInputRef}
+        className={styles.hiddenFileInput}
+        type="file"
+        accept=".json,application/json"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const raw = await file.text();
+            const result = await chat.importConversationBundle(raw);
+            if (result.ok) {
+              chat.setToast(`导入成功：${result.importedConversations} 个会话，${result.importedMessages} 条消息`);
+            } else {
+              chat.setToast(`导入失败：${result.message}`);
+            }
+          } finally {
+            e.currentTarget.value = '';
+          }
+        }}
+      />
       <PageAgentHost enabled />
       {sidebarCollapsed ? (
         <div className={styles.sidebarCollapsed}>
@@ -203,6 +224,9 @@ export function AppLayout() {
             setRenamingTitle('');
           }}
           onToggleCollapse={() => setSidebarCollapsed(true)}
+          conversationsHasMore={chat.conversationsHasMore}
+          loadingMoreConversations={chat.loadingMoreConversations}
+          onLoadMoreConversations={() => chat.loadMoreConversations()}
         />
       )}
 
@@ -249,8 +273,11 @@ export function AppLayout() {
             onInput={chat.setInput}
             onSend={() => chat.sendMessage(kb.useLocalKnowledge, kb.selectedDocIds)}
             onStop={chat.stopGenerating}
-            onCopyToast={(text) => chat.setToast(text)}
-          />
+          onCopyToast={(text) => chat.setToast(text)}
+          messagesHasOlder={chat.messagesHasOlder}
+          loadingOlderMessages={chat.loadingOlderMessages}
+          onLoadOlderMessages={() => chat.loadOlderMessages()}
+        />
         ) : tab === 'knowledge' ? (
           <div className={styles.knowledgePage}>
             <div className={styles.chatTitle}>本地知识库管理</div>
@@ -330,25 +357,6 @@ export function AppLayout() {
               </div>
             </div>
             <div className={styles.profileCard}>
-              <input
-                ref={importChatInputRef}
-                className={styles.hiddenFileInput}
-                type="file"
-                accept=".json,application/json"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  try {
-                    const raw = await file.text();
-                    const result = await chat.importConversationBundle(raw);
-                    if (result) {
-                      chat.setToast(`导入成功：${result.importedConversations} 个会话，${result.importedMessages} 条消息`);
-                    }
-                  } finally {
-                    e.currentTarget.value = '';
-                  }
-                }}
-              />
               <input
                 id="profile-avatar-upload"
                 className={styles.hiddenFileInput}
@@ -652,7 +660,7 @@ export function AppLayout() {
                 className="wx-btn danger"
                 onClick={() => {
                   logout();
-                  navigate('/auth', true);
+                  navigate('/auth/login', true);
                   setPendingLogoutConfirm(false);
                 }}
               >

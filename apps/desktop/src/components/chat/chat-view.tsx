@@ -1,5 +1,5 @@
 import React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '../../modules/chat/use-chat-module';
 import styles from '../../pages/app-layout.module.css';
 import { formatDisplayDateTime } from '../../utils/datetime';
@@ -47,9 +47,28 @@ export function ChatView(props: {
   onSend: () => void;
   onStop: () => void;
   onCopyToast: (text: string) => void;
+  messagesHasOlder?: boolean;
+  loadingOlderMessages?: boolean;
+  onLoadOlderMessages?: () => void | Promise<void>;
 }) {
-  const { title, messages, input, loading, toast, onInput, onSend, onStop, onCopyToast } = props;
+  const {
+    title,
+    messages,
+    input,
+    loading,
+    toast,
+    onInput,
+    onSend,
+    onStop,
+    onCopyToast,
+    messagesHasOlder = false,
+    loadingOlderMessages = false,
+    onLoadOlderMessages
+  } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const skipScrollToBottomRef = useRef(false);
+  const scrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
+
   const [composerPx, setComposerPx] = useState(() => {
     try {
       const raw = sessionStorage.getItem(COMPOSER_STORAGE_KEY);
@@ -88,11 +107,40 @@ export function ChatView(props: {
     window.addEventListener('pointercancel', onUp);
   };
 
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const saved = scrollRestoreRef.current;
+    if (!el || !saved) return;
+    if (loadingOlderMessages) return;
+    scrollRestoreRef.current = null;
+    const newH = el.scrollHeight;
+    el.scrollTop = newH - saved.height + saved.top;
+    skipScrollToBottomRef.current = true;
+  }, [messages, loadingOlderMessages]);
+
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el || !onLoadOlderMessages) return;
+    const onScroll = () => {
+      if (!messagesHasOlder || loadingOlderMessages) return;
+      if (el.scrollTop <= 64) {
+        scrollRestoreRef.current = { height: el.scrollHeight, top: el.scrollTop };
+        void Promise.resolve(onLoadOlderMessages());
+      }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [messagesHasOlder, loadingOlderMessages, onLoadOlderMessages]);
+
   useEffect(() => {
     const el = panelRef.current;
     if (!el) return;
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
     const nearBottom = gap < 120;
+    if (skipScrollToBottomRef.current) {
+      skipScrollToBottomRef.current = false;
+      return;
+    }
     if (loading || nearBottom) {
       el.scrollTop = el.scrollHeight;
     }
@@ -108,6 +156,7 @@ export function ChatView(props: {
       <div className={`${styles.chatTitle} ${styles.chatTitleWithKb}`}>{title}</div>
       <div className={styles.chatMainColumn}>
         <div ref={panelRef} className={styles.messagePanel}>
+          {loadingOlderMessages ? <div className="stats-tip">加载更早的消息…</div> : null}
           {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
           {messages.map((m) => (
           <div key={m.id} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : ''}`}>

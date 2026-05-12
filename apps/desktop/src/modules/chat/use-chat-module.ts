@@ -20,6 +20,44 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+export type ImportConversationBundleResult =
+  | { ok: true; importedConversations: number; importedMessages: number }
+  | { ok: false; message: string };
+
+function normalizeConversationImportPayload(parsed: unknown): unknown {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const p = parsed as Record<string, unknown>;
+  if (p.version === 1 && Array.isArray(p.conversations)) return parsed;
+  const pl = p.payload;
+  if (pl && typeof pl === 'object') {
+    const plObj = pl as Record<string, unknown>;
+    if (plObj.version === 1 && Array.isArray(plObj.conversations)) return pl;
+  }
+  if (p.ok === true && p.data && typeof p.data === 'object') {
+    const d = p.data as Record<string, unknown>;
+    if (d.version === 1 && Array.isArray(d.conversations)) return p.data;
+  }
+  return null;
+}
+
+function mergePollConversations(top: Conversation[], prev: Conversation[]) {
+  const topIds = new Set(top.map((c) => c.id));
+  return [...top, ...prev.filter((c) => !topIds.has(c.id))];
+}
+
+function isMsgStrictlyOlder(a: ChatMessage, b: ChatMessage) {
+  if (a.createdAt < b.createdAt) return true;
+  if (a.createdAt > b.createdAt) return false;
+  return a.id < b.id;
+}
+
+function mergePollMessages(recent: ChatMessage[], prev: ChatMessage[]) {
+  if (recent.length === 0) return prev;
+  const oldestRecent = recent[0];
+  const prefix = prev.filter((m) => isMsgStrictlyOlder(m, oldestRecent));
+  return [...prefix, ...recent];
+}
+
 export function useChatModule() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState('');
@@ -28,6 +66,11 @@ export function useChatModule() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
+  const [conversationsHasMore, setConversationsHasMore] = useState(false);
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
+  const [convNextOffset, setConvNextOffset] = useState(0);
+  const [messagesHasOlder, setMessagesHasOlder] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const typingQueueRef = useRef<string[]>([]);
   const typingTimerRef = useRef<number | null>(null);
   const typingAssistantIdRef = useRef<string | null>(null);
@@ -135,32 +178,106 @@ export function useChatModule() {
 
   const activeIdRef = useRef(activeId);
   const loadingRef = useRef(loading);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const messagesHasOlderRef = useRef(false);
+  const loadingOlderRef = useRef(false);
+  const convNextOffsetRef = useRef(0);
   activeIdRef.current = activeId;
   loadingRef.current = loading;
+  messagesRef.current = messages;
+  messagesHasOlderRef.current = messagesHasOlder;
+  loadingOlderRef.current = loadingOlderMessages;
+  convNextOffsetRef.current = convNextOffset;
 
-  async function refreshConversations() {
-    const resp = await listConversations(20);
+  function hydrateConversationTitles(list: Conversation[], prev: Conversation[]): Conversation[] {
+    const prevTitleById = new Map(prev.map((c) => [c.id, c.title || '']));
+    return list.map((c) => {
+      const serverTitle = (c.title || '').trim();
+      if (serverTitle) return c;
+      const optimisticTitle = (prevTitleById.get(c.id) || '').trim();
+      return optimisticTitle ? { ...c, title: optimisticTitle } : c;
+    });
+  }
+
+  async function refreshConversations(options?: { poll?: boolean }) {
+    const poll = Boolean(options?.poll);
+    const resp = await listConversations(20, 0);
     if (!resp.ok) {
       setError(`${resp.code}: ${resp.message}`);
       return [];
     }
-    const list = (resp.data as Conversation[]) || [];
-    setConversations((prev) => {
-      const prevTitleById = new Map(prev.map((c) => [c.id, c.title || '']));
-      return list.map((c) => {
-        const serverTitle = (c.title || '').trim();
-        if (serverTitle) return c;
-        const optimisticTitle = (prevTitleById.get(c.id) || '').trim();
-        return optimisticTitle ? { ...c, title: optimisticTitle } : c;
+    const raw = (resp.data as Conversation[]) || [];
+    if (poll) {
+      setConversations((prev) => {
+        const hydrated = hydrateConversationTitles(raw, prev);
+        return mergePollConversations(hydrated, prev);
       });
-    });
-    return list;
+      return raw;
+    }
+    setConversations((prev) => hydrateConversationTitles(raw, prev));
+    setConvNextOffset(raw.length);
+    setConversationsHasMore(raw.length === 20);
+    return raw;
   }
 
-  async function refreshMessages(conversationId: string) {
+  async function loadMoreConversations() {
+    if (loadingMoreConversations || !conversationsHasMore) return;
+    setLoadingMoreConversations(true);
+    try {
+      const resp = await listConversations(20, convNextOffsetRef.current);
+      if (!resp.ok) {
+        setError(`${resp.code}: ${resp.message}`);
+        return;
+      }
+      const batch = (resp.data as Conversation[]) || [];
+      setConversations((prev) => {
+        const hydrated = hydrateConversationTitles(batch, prev);
+        const seen = new Set(prev.map((c) => c.id));
+        const appended = hydrated.filter((c) => !seen.has(c.id));
+        return [...prev, ...appended];
+      });
+      setConvNextOffset((o) => o + batch.length);
+      setConversationsHasMore(batch.length === 20);
+    } finally {
+      setLoadingMoreConversations(false);
+    }
+  }
+
+  async function refreshMessages(conversationId: string, options?: { poll?: boolean }) {
     const resp = await listMessages(conversationId, 50);
     if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
-    setMessages((resp.data as any).messages || []);
+    const data = resp.data as { messages: ChatMessage[]; total: number; hasOlder: boolean };
+    const next = data.messages || [];
+    if (options?.poll) {
+      setMessages((prev) => mergePollMessages(next, prev));
+      setMessagesHasOlder(Boolean(data.hasOlder));
+      return;
+    }
+    setMessages(next);
+    setMessagesHasOlder(Boolean(data.hasOlder));
+  }
+
+  async function loadOlderMessages() {
+    const id = activeIdRef.current;
+    const prev = messagesRef.current;
+    if (!id || prev.length === 0 || !messagesHasOlderRef.current || loadingOlderRef.current) return;
+    const oldest = prev[0];
+    loadingOlderRef.current = true;
+    setLoadingOlderMessages(true);
+    try {
+      const resp = await listMessages(id, 50, { createdAt: oldest.createdAt, id: oldest.id });
+      if (!resp.ok) {
+        setError(`${resp.code}: ${resp.message}`);
+        return;
+      }
+      const data = resp.data as { messages: ChatMessage[]; total: number; hasOlder: boolean };
+      const batch = data.messages || [];
+      setMessages((cur) => [...batch, ...cur]);
+      setMessagesHasOlder(Boolean(data.hasOlder));
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlderMessages(false);
+    }
   }
 
   const refreshMessagesRef = useRef(refreshMessages);
@@ -176,16 +293,16 @@ export function useChatModule() {
         return;
       }
       if (msg.type === 'messages-changed' && msg.conversationId === activeIdRef.current && !loadingRef.current) {
-        void refreshMessagesRef.current(msg.conversationId);
+        void refreshMessagesRef.current(msg.conversationId, { poll: true });
       }
     });
     const pollMessages = window.setInterval(() => {
       const id = activeIdRef.current;
       if (!id || loadingRef.current) return;
-      void refreshMessagesRef.current(id);
+      void refreshMessagesRef.current(id, { poll: true });
     }, 4500);
     const pollConversations = window.setInterval(() => {
-      void refreshConversationsRef.current();
+      void refreshConversationsRef.current({ poll: true });
     }, 15000);
     return () => {
       unsub();
@@ -342,22 +459,29 @@ export function useChatModule() {
     return JSON.stringify(resp.data, null, 2);
   }
 
-  async function importConversationBundle(raw: string): Promise<{ importedConversations: number; importedMessages: number } | null> {
-    let parsed: any;
+  async function importConversationBundle(raw: string): Promise<ImportConversationBundleResult> {
+    const rawTrimmed = raw.replace(/^\uFEFF/, '');
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(rawTrimmed);
     } catch {
-      setError('导入文件不是有效 JSON');
-      return null;
+      return { ok: false, message: '文件不是有效的 JSON' };
     }
-    const resp = await importConversations(parsed);
+    const bundle = normalizeConversationImportPayload(parsed);
+    if (!bundle) {
+      return {
+        ok: false,
+        message: '不是有效的会话导出文件（需为 version 1 且包含 conversations，或为本应用接口返回的 data 结构）'
+      };
+    }
+    const resp = await importConversations(bundle);
     if (!resp.ok) {
-      setError(`${resp.code}: ${resp.message}`);
-      return null;
+      return { ok: false, message: resp.message || '导入失败' };
     }
     await refreshConversations();
     broadcastChatSync({ type: 'conversations-changed' });
-    return resp.data as { importedConversations: number; importedMessages: number };
+    const data = resp.data as { importedConversations: number; importedMessages: number };
+    return { ok: true, importedConversations: data.importedConversations, importedMessages: data.importedMessages };
   }
 
   return {
@@ -382,9 +506,16 @@ export function useChatModule() {
     exportConversationById,
     exportAllConversationBundles,
     importConversationBundle,
+    conversationsHasMore,
+    loadingMoreConversations,
+    loadMoreConversations,
+    messagesHasOlder,
+    loadingOlderMessages,
+    loadOlderMessages,
     newConversation: () => {
       setActiveId('');
       setMessages([]);
+      setMessagesHasOlder(false);
     }
   };
 }

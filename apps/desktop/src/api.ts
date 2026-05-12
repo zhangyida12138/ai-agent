@@ -63,12 +63,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>
   }
 }
 
-export async function listConversations(limit = 20) {
-  return request<Array<any>>(`/conversations?limit=${encodeURIComponent(String(limit))}`);
+export async function listConversations(limit = 20, offset = 0) {
+  return request<Array<any>>(
+    `/conversations?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  );
 }
 
-export async function listMessages(conversationId: string, limit = 50) {
-  return request<any>(`/conversations/${encodeURIComponent(conversationId)}/messages?limit=${encodeURIComponent(String(limit))}`);
+export async function listMessages(
+  conversationId: string,
+  limit = 50,
+  before?: { createdAt: string; id: string } | null
+) {
+  const qs = new URLSearchParams();
+  qs.set('limit', String(limit));
+  if (before?.createdAt && before?.id) {
+    qs.set('beforeCreatedAt', before.createdAt);
+    qs.set('beforeId', before.id);
+  }
+  const q = qs.toString();
+  return request<any>(`/conversations/${encodeURIComponent(conversationId)}/messages?${q}`);
 }
 
 export async function deleteConversation(conversationId: string) {

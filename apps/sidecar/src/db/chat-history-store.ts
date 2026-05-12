@@ -280,10 +280,12 @@ export class ChatHistoryStore {
     };
   }
 
-  async listConversations(limit: number, userId: string): Promise<Conversation[]> {
+  async listConversations(limit: number, userId: string, offset = 0): Promise<Conversation[]> {
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const safeOffset = Math.max(0, Math.floor(offset));
     const rows = this.queryAll<any>(
-      'SELECT id, title, created_at, updated_at, metadata_json FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?',
-      [userId, limit]
+      'SELECT id, title, created_at, updated_at, metadata_json FROM conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?',
+      [userId, safeLimit, safeOffset]
     );
     return rows.map((r) => ({
       id: r.id,
@@ -314,19 +316,38 @@ export class ChatHistoryStore {
     this.saveToFile();
   }
 
-  async listMessages(conversationId: string, limit: number): Promise<{ messages: ChatMessage[]; total: number }> {
+  async listMessages(
+    conversationId: string,
+    limit: number,
+    before?: { createdAt: string; id: string } | null
+  ): Promise<{ messages: ChatMessage[]; total: number; hasOlder: boolean }> {
     const totalRow = this.queryOne<{ c: number }>(
       'SELECT COUNT(1) as c FROM messages WHERE conversation_id = ?',
       [conversationId]
     );
     const total = totalRow?.c ?? 0;
 
-    const rows = this.queryAll<any>(
-      'SELECT id, conversation_id, role, content, citations_json, tags_json, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ?',
-      [conversationId, limit]
-    );
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const fetchN = safeLimit + 1;
 
-    const messages: ChatMessage[] = rows.map((r) => ({
+    let rows: any[];
+    if (before && before.createdAt && before.id) {
+      rows = this.queryAll<any>(
+        'SELECT id, conversation_id, role, content, citations_json, tags_json, created_at FROM messages WHERE conversation_id = ? AND (created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC, id DESC LIMIT ?',
+        [conversationId, before.createdAt, before.createdAt, before.id, fetchN]
+      );
+    } else {
+      rows = this.queryAll<any>(
+        'SELECT id, conversation_id, role, content, citations_json, tags_json, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
+        [conversationId, fetchN]
+      );
+    }
+
+    const hasOlder = rows.length > safeLimit;
+    const slice = hasOlder ? rows.slice(0, safeLimit) : rows;
+    slice.reverse();
+
+    const messages: ChatMessage[] = slice.map((r) => ({
       id: r.id,
       conversationId: r.conversation_id,
       role: r.role,
@@ -336,7 +357,7 @@ export class ChatHistoryStore {
       createdAt: r.created_at
     }));
 
-    return { messages, total };
+    return { messages, total, hasOlder };
   }
 
   async conversationBelongsToUser(conversationId: string, userId: string): Promise<boolean> {

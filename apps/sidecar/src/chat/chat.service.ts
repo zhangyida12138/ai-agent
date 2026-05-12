@@ -87,14 +87,14 @@ export class ChatService {
     this.provider = provider;
   }
 
-  async listConversations(limit: number, userId: string) {
+  async listConversations(limit: number, userId: string, offset = 0) {
     const store = await this.storePromise;
-    return store.listConversations(limit, userId);
+    return store.listConversations(limit, userId, offset);
   }
 
-  async listMessages(conversationId: string, limit: number) {
+  async listMessages(conversationId: string, limit: number, before?: { createdAt: string; id: string } | null) {
     const store = await this.storePromise;
-    return store.listMessages(conversationId, limit);
+    return store.listMessages(conversationId, limit, before ?? null);
   }
 
   private async buildGenerationContext(req: SendChatRequest) {

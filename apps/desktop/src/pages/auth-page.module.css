@@ -85,6 +85,36 @@
   font-size: 14px;
 }
 
+.hint {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #f87171;
+}
+
+:global(:root[data-theme='light']) .hint {
+  color: #dc2626;
+}
+
+.authLinkRow {
+  margin-top: 4px;
+}
+
+.authLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+  color: var(--neon-blue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.authLink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .errorOverlay {
   position: fixed;
   inset: 0;

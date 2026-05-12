@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BRAND_EN, BRAND_SLOGAN_EN, BRAND_ZH_SPACE } from '../../config/brand';
 import type { Conversation } from '../../modules/chat/use-chat-module';
 import styles from '../../pages/app-layout.module.css';
@@ -23,6 +23,9 @@ export function ConversationSidebar(props: {
   onRenameBlur: (id: string) => Promise<void>;
   onRenameCancel: () => void;
   onToggleCollapse: () => void;
+  conversationsHasMore: boolean;
+  loadingMoreConversations: boolean;
+  onLoadMoreConversations: () => void | Promise<void>;
 }) {
   const {
     userName,
@@ -41,8 +44,26 @@ export function ConversationSidebar(props: {
     setRenamingTitle,
     onRenameBlur,
     onRenameCancel,
-    onToggleCollapse
+    onToggleCollapse,
+    conversationsHasMore,
+    loadingMoreConversations,
+    onLoadMoreConversations
   } = props;
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (!conversationsHasMore || loadingMoreConversations) return;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 72) {
+        void onLoadMoreConversations();
+      }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [conversationsHasMore, loadingMoreConversations, onLoadMoreConversations]);
+
   return (
     <div className={styles.sidebar}>
       <div className={styles.sidebarBrand}>
@@ -70,7 +91,7 @@ export function ConversationSidebar(props: {
           )}
         </button>
       </div>
-      <div className={styles.conversationList}>
+      <div ref={listRef} className={styles.conversationList}>
         {conversations.map((c) => (
           <div key={c.id} className={styles.conversationItemWrap}>
             <button
@@ -98,6 +119,7 @@ export function ConversationSidebar(props: {
             </button>
           </div>
         ))}
+        {loadingMoreConversations ? <div className="stats-tip">加载更多会话…</div> : null}
       </div>
       <button className={`wx-btn ${tab === 'settings' ? `primary ${styles.activeTab}` : 'ghost'}`} onClick={onSettingsMenu}>设置</button>
     </div>

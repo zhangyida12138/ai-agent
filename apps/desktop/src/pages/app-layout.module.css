@@ -365,6 +365,7 @@
 /* 与上方 .knowledgeBox 内「本地知识库」标题左缘对齐（卡片左边框 + 内边距） */
 .chatTitleWithKb {
   padding-left: calc(1px + 12px);
+  margin-bottom: 10px;
 }
 
 .knowledgeBox,

@@ -40,18 +40,25 @@ export class ChatController {
   }
 
   @Get('/conversations')
-  async listConversations(@Headers('authorization') authHeader?: string, @Query('limit') limitStr?: string) {
+  async listConversations(
+    @Headers('authorization') authHeader: string | undefined,
+    @Query('limit') limitStr?: string,
+    @Query('offset') offsetStr?: string
+  ) {
     const user = await this.requireUser(authHeader);
     if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 20;
-    return ok(await this.chatService.listConversations(limit, user.id));
+    const offset = offsetStr ? Math.max(0, Number(offsetStr)) : 0;
+    return ok(await this.chatService.listConversations(limit, user.id, offset));
   }
 
   @Get('/conversations/:conversationId/messages')
   async listMessages(
     @Headers('authorization') authHeader: string | undefined,
     @Param('conversationId') conversationId: string,
-    @Query('limit') limitStr?: string
+    @Query('limit') limitStr?: string,
+    @Query('beforeCreatedAt') beforeCreatedAt?: string,
+    @Query('beforeId') beforeId?: string
   ) {
     const user = await this.requireUser(authHeader);
     if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
@@ -59,7 +66,11 @@ export class ChatController {
     const owns = await store.conversationBelongsToUser(conversationId, user.id);
     if (!owns) return err({ code: 'FORBIDDEN', message: '无权访问该会话', retryable: false });
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 50;
-    return ok(await this.chatService.listMessages(conversationId, limit));
+    const before =
+      beforeCreatedAt && beforeId
+        ? { createdAt: String(beforeCreatedAt).trim(), id: String(beforeId).trim() }
+        : null;
+    return ok(await this.chatService.listMessages(conversationId, limit, before));
   }
 
   @Delete('/conversations/:conversationId')
