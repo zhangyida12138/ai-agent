@@ -404,6 +404,24 @@
   gap: 6px;
 }
 
+.knowledgeTitleButton {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: inherit;
+  color: var(--neon-blue);
+  cursor: pointer;
+  text-align: left;
+  text-shadow: var(--glow-shadow);
+}
+
+.knowledgeTitleButton:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .knowledgeCollapseBtn {
   min-width: 24px;
   width: 24px;

@@ -260,6 +260,7 @@ export function AppLayout() {
             collapsible
             collapsed={knowledgeCardCollapsed}
             onToggleCollapse={() => setKnowledgeCardCollapsed((prev) => !prev)}
+            onNavigateToKnowledgeManage={() => navigate('/knowledge')}
           />
         ) : null}
 

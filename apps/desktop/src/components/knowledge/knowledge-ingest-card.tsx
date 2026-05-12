@@ -28,6 +28,8 @@ export function KnowledgeIngestCard(props: {
   collapsible?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** 点击「本地知识库」标题时跳转知识库管理页 */
+  onNavigateToKnowledgeManage?: () => void;
 }) {
   const {
     useLocalKnowledge,
@@ -47,7 +49,8 @@ export function KnowledgeIngestCard(props: {
     onUploadError,
     collapsible,
     collapsed,
-    onToggleCollapse
+    onToggleCollapse,
+    onNavigateToKnowledgeManage
   } = props;
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [parsingFile, setParsingFile] = useState(false);
@@ -128,7 +131,18 @@ export function KnowledgeIngestCard(props: {
     <div className={styles.knowledgeBox}>
       <div className={styles.knowledgeHeader}>
         <div className={styles.knowledgeTitleWrap}>
-          <span>本地知识库</span>
+          {onNavigateToKnowledgeManage ? (
+            <button
+              type="button"
+              className={styles.knowledgeTitleButton}
+              onClick={onNavigateToKnowledgeManage}
+              title="打开知识库管理"
+            >
+              本地知识库
+            </button>
+          ) : (
+            <span>本地知识库</span>
+          )}
           {collapsible ? (
             <button className={`wx-btn ghost ${styles.knowledgeCollapseBtn}`} onClick={onToggleCollapse} title={collapsed ? '展开' : '收起'}>
               <span aria-hidden>{collapsed ? '▼' : '▲'}</span>
