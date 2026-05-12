@@ -1,7 +1,21 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+
+/** 每次生产构建写入 dist/app-version.json，供前端轮询检测部署更新 */
+function emitAppVersionPlugin(): Plugin {
+  return {
+    name: 'emit-app-version',
+    writeBundle(outputOptions) {
+      const dir = outputOptions.dir;
+      if (!dir) return;
+      const v = (process.env.VITE_APP_BUILD_ID || '').trim() || String(Date.now());
+      fs.writeFileSync(path.join(dir, 'app-version.json'), JSON.stringify({ v }), 'utf8');
+    }
+  };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -18,7 +32,7 @@ export default defineConfig(({ mode, command }) => {
 
   return {
     envDir: repoRoot,
-    plugins: [react()],
+    plugins: [react(), emitAppVersionPlugin()],
     server: {
       strictPort: true,
       port: devPort,

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { BuildUpdatePrompt } from './components/build-update-prompt';
 import { AuthProvider, useAuth } from './modules/auth/auth';
 import { RouterProvider, useRouter } from './modules/routing/router';
 import { AppLayout } from './pages/app-layout';
@@ -41,6 +42,7 @@ function AppRoutes() {
 export function AppRoot() {
   return (
     <RouterProvider>
+      {import.meta.env.PROD ? <BuildUpdatePrompt /> : null}
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
