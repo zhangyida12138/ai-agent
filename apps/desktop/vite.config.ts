@@ -1,8 +1,11 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const require = createRequire(import.meta.url);
 
 /** 每次生产构建写入 dist/app-version.json，供前端轮询检测部署更新 */
 function emitAppVersionPlugin(): Plugin {
@@ -13,6 +16,42 @@ function emitAppVersionPlugin(): Plugin {
       if (!dir) return;
       const v = (process.env.VITE_APP_BUILD_ID || '').trim() || String(Date.now());
       fs.writeFileSync(path.join(dir, 'app-version.json'), JSON.stringify({ v }), 'utf8');
+    }
+  };
+}
+
+/**
+ * pdf.js 的 worker 默认打进 /assets/*.mjs；部分生产环境对 .mjs MIME 或缓存策略不友好，
+ * 导致 Worker / fake worker 的 dynamic import 失败。复制为 dist 根目录的 pdf.worker.js，
+ * 前端固定指向该 URL（.js 通常已正确配置为 JavaScript）。
+ */
+function pdfWorkerPublicPlugin(): Plugin {
+  let workerSrcFile = '';
+  return {
+    name: 'pdf-worker-public',
+    configResolved() {
+      workerSrcFile = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = (req.url ?? '').split('?')[0] ?? '';
+        if (!pathname.endsWith('/pdf.worker.js')) {
+          next();
+          return;
+        }
+        try {
+          const buf = fs.readFileSync(workerSrcFile);
+          res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+          res.end(buf);
+        } catch {
+          next();
+        }
+      });
+    },
+    writeBundle(outputOptions) {
+      const dir = outputOptions.dir;
+      if (!dir) return;
+      fs.copyFileSync(workerSrcFile, path.join(dir, 'pdf.worker.js'));
     }
   };
 }
@@ -32,7 +71,7 @@ export default defineConfig(({ mode, command }) => {
 
   return {
     envDir: repoRoot,
-    plugins: [react(), emitAppVersionPlugin()],
+    plugins: [react(), emitAppVersionPlugin(), pdfWorkerPublicPlugin()],
     server: {
       strictPort: true,
       port: devPort,

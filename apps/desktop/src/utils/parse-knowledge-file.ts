@@ -1,5 +1,4 @@
 import mammoth from 'mammoth';
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 /** 与前端「上传说明」提示一致，单文件字节上限 */
 export const KNOWLEDGE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
@@ -8,11 +7,20 @@ const MAX_OCR_PAGES = 28;
 const MIN_TEXT_LAYER_CHARS = 72;
 const PDF_OCR_SCALE = 1.85;
 
+/** 与 vite「pdf-worker-public」插件一致：根路径 pdf.worker.js（避免 /assets/*.mjs 在生产环境 MIME/缓存问题） */
+function getPdfWorkerSrc(): string {
+  const raw = import.meta.env.BASE_URL || '/';
+  if (raw === './') {
+    return new URL('pdf.worker.js', document.baseURI).href;
+  }
+  return new URL('pdf.worker.js', new URL(raw, window.location.origin)).href;
+}
+
 let pdfWorkerConfigured = false;
 
 function configurePdfWorker(pdfjs: typeof import('pdfjs-dist')) {
   if (pdfWorkerConfigured) return;
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+  pdfjs.GlobalWorkerOptions.workerSrc = getPdfWorkerSrc();
   pdfWorkerConfigured = true;
 }
 
