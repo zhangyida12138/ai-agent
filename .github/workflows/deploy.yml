@@ -2,7 +2,7 @@ name: CI-CD-Deploy
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
   workflow_dispatch:
 
 jobs:
@@ -11,9 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1 # 与你服务器版本保持一致
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: 'pnpm' # 自动缓存 node_modules
 
       - name: Enable pnpm from packageManager
         run: |
@@ -68,7 +73,7 @@ jobs:
           sudo cp -r apps/desktop/dist/* /var/www/ai-agent/
 
           echo "[deploy] reload sidecar"
-          pm2 restart ai-agent-sidecar || pm2 start "pnpm --filter @ai-agent/sidecar start" --name ai-agent-sidecar
+          pm2 restart ai-agent || pm2 start "pnpm --filter @ai-agent/sidecar start" --name ai-agent
           pm2 save
 
           echo "[deploy] apply nginx config from repo"
