@@ -64,8 +64,8 @@ jobs:
           sudo corepack enable
           sudo corepack prepare pnpm@10.15.1 --activate
           sudo pnpm --version
-          sudo pnpm install --frozen-lockfile --prod=true --force
-          sudo pnpm  build
+          sudo HUSKY=0 pnpm install --frozen-lockfile --prod=true --force
+          sudo HUSKY=0 pnpm  build
 
           echo "[deploy] update frontend static files"
           sudo mkdir -p /var/www/ai-agent
