@@ -846,11 +846,58 @@
   position: relative;
 }
 
+.messagePanelWrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .messagePanel {
   flex: 1;
   overflow: auto;
   position: relative;
   min-height: 0;
+}
+
+.scrollToBottomFab {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 6;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border-soft);
+  background: var(--glass);
+  color: var(--neon-blue);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22), var(--glow-shadow);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.scrollToBottomFab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28), var(--glow-shadow);
+}
+
+.scrollToBottomFab:focus-visible {
+  outline: 2px solid var(--neon-blue);
+  outline-offset: 2px;
+}
+
+:global(:root[data-theme='light']) .scrollToBottomFab {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(17, 24, 39, 0.12);
+  color: var(--neon-blue);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
 }
 
 .composerGrip {

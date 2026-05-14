@@ -1,5 +1,5 @@
 import React from 'react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '../../modules/chat/use-chat-module';
 import styles from '../../pages/app-layout.module.css';
 import { formatDisplayDateTime } from '../../utils/datetime';
@@ -23,6 +23,7 @@ function escapeHtml(input: string) {
 function markdownToHtml(md: string) {
   const src = escapeHtml(md || '');
   const codeBlocks: string[] = [];
+  // 匹配三个反引号包裹的内容，将其转为 HTML 的 <pre><code> 格式，存入一个叫 codeBlocks 的数组中，并用一个占位符（如 @@CODEBLOCK_0@@）暂时替代。
   let text = src.replace(/```([\s\S]*?)```/g, (_, code) => `@@CODEBLOCK_${codeBlocks.push(`<pre><code>${code}</code></pre>`) - 1}@@`);
   text = text.replace(/^### (.*)$/gm, '<h3>$1</h3>');
   text = text.replace(/^## (.*)$/gm, '<h2>$1</h2>');
@@ -68,7 +69,23 @@ export function ChatView(props: {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const skipScrollToBottomRef = useRef(false);
   const scrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
+  const syncJumpToBottomVisibility = useCallback(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowJumpToBottom(messages.length > 0 && gap >= 120);
+  }, [messages.length]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    setShowJumpToBottom(false);
+  }, []);
+
+  // 从sessionStorage中获取输入框高度，如果获取失败，则返回默认高度
   const [composerPx, setComposerPx] = useState(() => {
     try {
       const raw = sessionStorage.getItem(COMPOSER_STORAGE_KEY);
@@ -79,10 +96,14 @@ export function ChatView(props: {
       return COMPOSER_H_DEFAULT;
     }
   });
+
+  /** 鼠标按下事件，模拟拖拽事件 */
   const onComposerGripDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
+    // 记录点击瞬间Y轴坐标
     const startY = e.clientY;
+    // 记录此时输入框初始高度
     const startH = composerPx;
     const onMove = (ev: PointerEvent) => {
       // 分隔条下移 → 输入区变矮；上移 → 输入区变高（与常见分割条习惯一致）
@@ -90,6 +111,8 @@ export function ChatView(props: {
       setComposerPx(next);
     };
     const onUp = () => {
+      // 移除事件监听,避免鼠标松开也触发onMove
+      // 保证鼠标，触控板，和手写笔统一设计，使用pointer events API
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
@@ -116,21 +139,24 @@ export function ChatView(props: {
     const newH = el.scrollHeight;
     el.scrollTop = newH - saved.height + saved.top;
     skipScrollToBottomRef.current = true;
-  }, [messages, loadingOlderMessages]);
+    requestAnimationFrame(() => syncJumpToBottomVisibility());
+  }, [messages, loadingOlderMessages, syncJumpToBottomVisibility]);
 
   useEffect(() => {
     const el = panelRef.current;
-    if (!el || !onLoadOlderMessages) return;
+    if (!el) return;
     const onScroll = () => {
-      if (!messagesHasOlder || loadingOlderMessages) return;
+      syncJumpToBottomVisibility();
+      if (!onLoadOlderMessages || !messagesHasOlder || loadingOlderMessages) return;
       if (el.scrollTop <= 64) {
         scrollRestoreRef.current = { height: el.scrollHeight, top: el.scrollTop };
         void Promise.resolve(onLoadOlderMessages());
       }
     };
     el.addEventListener('scroll', onScroll, { passive: true });
+    syncJumpToBottomVisibility();
     return () => el.removeEventListener('scroll', onScroll);
-  }, [messagesHasOlder, loadingOlderMessages, onLoadOlderMessages]);
+  }, [messagesHasOlder, loadingOlderMessages, onLoadOlderMessages, syncJumpToBottomVisibility]);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -139,12 +165,14 @@ export function ChatView(props: {
     const nearBottom = gap < 120;
     if (skipScrollToBottomRef.current) {
       skipScrollToBottomRef.current = false;
+      requestAnimationFrame(() => syncJumpToBottomVisibility());
       return;
     }
     if (loading || nearBottom) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages, loading]);
+    requestAnimationFrame(() => syncJumpToBottomVisibility());
+  }, [messages, loading, syncJumpToBottomVisibility]);
 
   return (
     <div className={styles.chatViewShell}>
@@ -155,7 +183,8 @@ export function ChatView(props: {
       ) : null}
       <div className={`${styles.chatTitle} ${styles.chatTitleWithKb}`}>{title}</div>
       <div className={styles.chatMainColumn}>
-        <div ref={panelRef} className={styles.messagePanel}>
+        <div className={styles.messagePanelWrap}>
+          <div ref={panelRef} className={styles.messagePanel}>
           {loadingOlderMessages ? <div className="stats-tip">加载更早的消息…</div> : null}
           {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
           {messages.map((m) => (
@@ -192,6 +221,18 @@ export function ChatView(props: {
             ) : null}
           </div>
           ))}
+          </div>
+          {showJumpToBottom ? (
+            <button
+              type="button"
+              className={styles.scrollToBottomFab}
+              onClick={scrollToBottom}
+              title="回到底部"
+              aria-label="回到底部"
+            >
+              <span aria-hidden>↓</span>
+            </button>
+          ) : null}
         </div>
         <div
           className={styles.composerGrip}
