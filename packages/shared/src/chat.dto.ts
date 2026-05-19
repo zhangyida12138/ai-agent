@@ -8,7 +8,7 @@ export type Conversation = {
 export type ChatMessage = {
   id: string;
   conversationId: string;
-  role: "user" | "assistant" | "system";
+  role: 'user' | 'assistant' | 'system';
   content: string;
   citations?: Array<{
     refId: string;
@@ -23,6 +23,8 @@ export type SendChatRequest = {
   requestId: string;
   conversationId: string;
   userMessage: string;
+  /** 前端预分配的助手消息 id，便于中断后与本地气泡、持久化记录对齐 */
+  assistantMessageId?: string;
   options?: {
     language?: string;
     useLocalKnowledge?: boolean;
@@ -138,4 +140,3 @@ export type ImportConversationsResponse = {
   importedConversations: number;
   importedMessages: number;
 };
-

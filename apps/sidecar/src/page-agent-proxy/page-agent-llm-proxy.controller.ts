@@ -1,23 +1,17 @@
-import { Body, Controller, Headers, Post, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Headers, Post, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { ChatHistoryStore } from '../db/chat-history-store';
+import { createClientAbortSignal, isClientAbortError } from '../common/client-abort';
+import {
+  buildUpstreamRequestBody,
+  resolvePageAgentUpstreams,
+  shouldFailoverPageAgentHttp,
+  type PageAgentUpstream
+} from './page-agent-upstream';
 
-type UpstreamKind = 'deepseek' | 'dashscope';
-
-function resolveUpstream(): { kind: UpstreamKind; chatUrl: string; apiKey: string | null } {
-  const raw = (process.env.PAGE_AGENT_UPSTREAM || 'deepseek').toLowerCase().trim();
-  const kind: UpstreamKind = raw === 'dashscope' || raw === 'qwen' ? 'dashscope' : 'deepseek';
-
-  if (kind === 'dashscope') {
-    const baseUrl = (process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1').replace(/\/$/, '');
-    const apiKey = process.env.DASHSCOPE_API_KEY?.trim() || null;
-    return { kind, chatUrl: `${baseUrl}/chat/completions`, apiKey };
-  }
-
-  const baseUrl = (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/$/, '');
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim() || null;
-  return { kind, chatUrl: `${baseUrl}/chat/completions`, apiKey };
-}
+type ForwardResult = 'ok' | 'failover' | 'cancelled';
 
 @Controller()
 export class PageAgentLlmProxyController {
@@ -39,14 +33,69 @@ export class PageAgentLlmProxyController {
     return (await this.storePromise).getUserByToken(token);
   }
 
+  private async forwardUpstream(
+    upstream: PageAgentUpstream,
+    body: unknown,
+    res: Response,
+    clientSignal: AbortSignal
+  ): Promise<ForwardResult> {
+    if (clientSignal.aborted) return 'cancelled';
+
+    let upstreamResp: globalThis.Response;
+    try {
+      upstreamResp = await fetch(upstream.chatUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${upstream.apiKey}`
+        },
+        body: buildUpstreamRequestBody(body, upstream.defaultModel),
+        signal: clientSignal
+      });
+    } catch (err) {
+      if (isClientAbortError(err, clientSignal)) return 'cancelled';
+      throw err;
+    }
+
+    if (clientSignal.aborted) return 'cancelled';
+
+    if (!upstreamResp.ok && shouldFailoverPageAgentHttp(upstreamResp.status)) {
+      await upstreamResp.text().catch(() => '');
+      return 'failover';
+    }
+
+    const ct = upstreamResp.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    res.status(upstreamResp.status);
+
+    if (!upstreamResp.body) {
+      res.end();
+      return 'ok';
+    }
+
+    try {
+      await pipeline(Readable.fromWeb(upstreamResp.body as Parameters<typeof Readable.fromWeb>[0]), res, {
+        signal: clientSignal
+      });
+      return 'ok';
+    } catch (err) {
+      if (isClientAbortError(err, clientSignal) || res.writableEnded || res.destroyed) {
+        return 'cancelled';
+      }
+      throw err;
+    }
+  }
+
   /**
    * Page Agent OpenAI 兼容入口：浏览器只带用户登录态，模型密钥仅服务端读取。
-   * 上游由 `PAGE_AGENT_UPSTREAM` 选择：`deepseek`（默认）或 `dashscope`（通义千问兼容模式）。
+   * 默认按智谱 → Gemini（OpenAI 兼容）→ DeepSeek 故障转移；可用 `PAGE_AGENT_FAILOVER_ORDER` 覆盖。
+   * 客户端断开或 Abort 后不再切换上游。
    */
   @Post('/page-agent/llm/v1/chat/completions')
   async proxyChatCompletions(
     @Headers('authorization') authHeader: string | undefined,
     @Body() body: unknown,
+    @Req() httpReq: Request,
     @Res({ passthrough: false }) res: Response
   ) {
     const user = await this.requireUser(authHeader);
@@ -55,40 +104,67 @@ export class PageAgentLlmProxyController {
       return;
     }
 
-    const { kind, chatUrl, apiKey } = resolveUpstream();
-    if (!apiKey) {
-      const hint =
-        kind === 'dashscope'
-          ? '请在服务端环境配置 DASHSCOPE_API_KEY，并设置 PAGE_AGENT_UPSTREAM=dashscope'
-          : '请在服务端环境配置 DEEPSEEK_API_KEY（或设置 PAGE_AGENT_UPSTREAM=dashscope 使用通义）';
+    const upstreams = resolvePageAgentUpstreams();
+    if (upstreams.length === 0) {
       res.status(503).json({
         error: {
-          message: `Page Agent 上游未配置 API Key（${kind}）。${hint}`,
+          message:
+            'Page Agent 未配置任何可用上游。请设置 ZHIPU_API_KEY、GEMINI_API_KEY 和/或 DEEPSEEK_API_KEY（或 PAGE_AGENT_UPSTREAM=dashscope + DASHSCOPE_API_KEY）。',
           type: 'proxy_not_configured'
         }
       });
       return;
     }
 
-    let upstream: globalThis.Response;
-    try {
-      upstream = await fetch(chatUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(body ?? {})
-      });
-    } catch {
-      res.status(502).json({ error: { message: '转发模型请求失败', type: 'upstream_network_error' } });
+    const clientSignal = createClientAbortSignal(httpReq, res);
+    const attemptErrors: string[] = [];
+
+    for (let i = 0; i < upstreams.length; i++) {
+      if (clientSignal.aborted) {
+        return;
+      }
+
+      const upstream = upstreams[i]!;
+      if (i > 0) {
+        // eslint-disable-next-line no-console
+        console.warn(`[page-agent] 正在切换备用上游 ${upstream.id}…`);
+      }
+
+      try {
+        const outcome = await this.forwardUpstream(upstream, body, res, clientSignal);
+        if (outcome === 'cancelled') {
+          return;
+        }
+        if (outcome === 'ok') {
+          if (i > 0) {
+            // eslint-disable-next-line no-console
+            console.warn(`[page-agent] 已使用上游 ${upstream.id}`);
+          }
+          return;
+        }
+        attemptErrors.push(`[${upstream.id}] 上游返回可重试错误`);
+      } catch (e) {
+        if (isClientAbortError(e, clientSignal)) {
+          return;
+        }
+        const msg = e instanceof Error ? e.message : String(e);
+        attemptErrors.push(`[${upstream.id}] ${msg}`);
+        if (i < upstreams.length - 1 && !clientSignal.aborted) {
+          // eslint-disable-next-line no-console
+          console.warn(`[page-agent] ${upstream.id} 调用失败，尝试下一上游: ${msg}`);
+        }
+      }
+    }
+
+    if (clientSignal.aborted || res.writableEnded) {
       return;
     }
 
-    const ct = upstream.headers.get('content-type');
-    if (ct) res.setHeader('Content-Type', ct);
-    res.status(upstream.status);
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.send(buf);
+    res.status(502).json({
+      error: {
+        message: attemptErrors.length > 0 ? attemptErrors.join('；') : '所有上游均不可用',
+        type: 'upstream_failover_exhausted'
+      }
+    });
   }
 }

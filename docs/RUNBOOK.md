@@ -111,14 +111,29 @@ server {
 - `VITE_SIDECAR_URL=/api`
 - `CORS_ORIGINS=https://notgonnalieplz.site,https://www.notgonnalieplz.site`（与浏览器实际访问的 **Origin** 一致；`apex` 与 `www` 需分别列出）
 
-**DeepSeek API Key（`DEEPSEEK_API_KEY`）推荐注入方式（任选其一，勿提交到 git）：**
+**AI 模型密钥（LangChain 多提供商，勿提交到 git）**
 
-1. **仅服务器上的 `.env.production`**：在部署机编辑该文件，写入 `DEEPSEEK_API_KEY=sk-...`，文件权限建议 `chmod 600 .env.production`。
-2. **systemd**：在 unit 里使用 `Environment=DEEPSEEK_API_KEY=sk-...` 或 `EnvironmentFile=/etc/ai-agent/secrets.env`（`secrets.env` 仅 root 可读）。
-3. **启动前 export**（临时）：`export DEEPSEEK_API_KEY=sk-...` 后执行 `pnpm --filter @ai-agent/sidecar start`。
-4. **Docker**：`docker run -e DEEPSEEK_API_KEY=sk-... ...`。
+在仓库根目录复制 `.env.example` 为 `.env` / `.env.production`，至少配置：
 
-说明：进程在加载 `.env*` **之前**已存在且非空的 `DEEPSEEK_API_KEY` 不会被 env 文件里的空行覆盖，便于「文件里留占位、密钥只由 systemd 注入」。
+| 变量                                 | 说明                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| `ZHIPU_API_KEY`                      | 主路（国内推荐，OpenAI 兼容接口）                                            |
+| `DEEPSEEK_API_KEY`                   | 备用路                                                                       |
+| `GEMINI_API_KEY` 或 `GOOGLE_API_KEY` | 备用路（访问 Google 常需 `HTTPS_PROXY`）                                     |
+| `AI_PRIMARY_PROVIDER`                | 默认 `zhipu`（智谱）                                                         |
+| `AI_FALLBACK_PROVIDER`               | 默认 `deepseek`                                                              |
+| `ZHIPU_API_KEY`                      | 智谱 Open API Key（[开放平台](https://open.bigmodel.cn/usercenter/apikeys)） |
+| `ZHIPU_MODEL`                        | 默认 `glm-4-flash`                                                           |
+| `DEEPSEEK_MODEL` / `GEMINI_MODEL`    | 可选，覆盖默认模型名                                                         |
+
+推荐注入方式（任选其一）：
+
+1. **仅服务器上的 `.env.production`**：写入 `DEEPSEEK_API_KEY`、`GEMINI_API_KEY` 等，文件权限建议 `chmod 600 .env.production`。
+2. **systemd**：`EnvironmentFile=/etc/ai-agent/secrets.env`（仅 root 可读）。
+3. **启动前 export**（临时）：`export DEEPSEEK_API_KEY=... GEMINI_API_KEY=...` 后执行 `pnpm --filter @ai-agent/sidecar start`。
+4. **Docker**：`docker run -e DEEPSEEK_API_KEY=... -e GEMINI_API_KEY=... ...`
+
+说明：进程在加载 `.env*` **之前**已存在且非空的密钥不会被 env 文件里的空行覆盖，便于「文件里留占位、密钥只由 systemd 注入」。
 
 Sidecar 在服务器上：
 
@@ -149,7 +164,6 @@ pnpm --filter @ai-agent/sidecar start
   - `SIDECAR_PORT_STRATEGY=lock`（默认）：若 `3001` 已占用则跳过重复实例启动，不再报错退出。
   - `SIDECAR_PORT_STRATEGY=increment`：自动尝试 `3002`、`3003`...
   - 可选 `SIDECAR_PORT_MAX_TRIES=20`：控制自增模式最大尝试次数。
-- 模型配置报错：当前默认 `mock`，若设置了其他 provider 但未实现，会返回 `PROVIDER_NOT_CONFIGURED`。
+- 模型配置报错：未配置 `DEEPSEEK_API_KEY` / `GEMINI_API_KEY` 时会返回 `PROVIDER_NOT_CONFIGURED`；主路失败且备用密钥已配置时会自动切换 Gemini。
 - 看不到知识效果：确认已导入文本、`useLocalKnowledge=true`、提问内容与导入文本相关。
 - 生产环境接口报 CORS：检查 `CORS_ORIGINS` 是否包含前端页面的完整 Origin（含 `https://`）；或改用上文同域反代方案。
-

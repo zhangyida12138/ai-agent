@@ -13,7 +13,9 @@ function toProviderMessages(history: ChatMessage[]) {
 }
 
 function summarizeFirstQuestionAsTitle(input: string): string {
-  const text = String(input || '').replace(/\s+/g, ' ').trim();
+  const text = String(input || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!text) return '新会话';
   const stripped = text.replace(/^[\s，。！？,.!?;；:："'“”‘’（）()【】\[\]-]+/, '');
   const normalized = stripped || text;
@@ -46,7 +48,8 @@ function buildUserProfileSystemMessage(profile: {
   return {
     role: 'system',
     content:
-      '以下是用户画像信息。回答时请在不泄露隐私、不过度臆测的前提下，适度结合这些信息提升回答相关性：\n' + lines.join('\n')
+      '以下是用户画像信息。回答时请在不泄露隐私、不过度臆测的前提下，适度结合这些信息提升回答相关性：\n' +
+      lines.join('\n')
   };
 }
 
@@ -113,9 +116,7 @@ export class ChatService {
     await store.appendMessage(userMsg);
     const earlyMessages = await store.listMessages(conversationId, 2);
     const firstOnlyUserMessage =
-      earlyMessages.total === 1 &&
-      earlyMessages.messages.length === 1 &&
-      earlyMessages.messages[0]?.role === 'user';
+      earlyMessages.total === 1 && earlyMessages.messages.length === 1 && earlyMessages.messages[0]?.role === 'user';
     if (firstOnlyUserMessage && userId) {
       const title = summarizeFirstQuestionAsTitle(req.userMessage);
       await store.setConversationTitleIfEmpty(conversationId, String(userId), title);
@@ -123,7 +124,7 @@ export class ChatService {
     const ctx = (await store.listMessages(conversationId, 20)).messages;
     const profile = await store.getUserById((req as any).userId ?? '');
 
-    const providerKind = (process.env.AI_PROVIDER_KIND || 'deepseek').toLowerCase();
+    const providerKind = (process.env.AI_PRIMARY_PROVIDER || process.env.AI_PROVIDER_KIND || 'zhipu').toLowerCase();
     const useLocalKnowledge = Boolean(req.options?.useLocalKnowledge);
     const selectedDocIds = Array.isArray(req.options?.selectedDocIds)
       ? req.options?.selectedDocIds?.map((x) => String(x).trim()).filter(Boolean)
@@ -131,7 +132,8 @@ export class ChatService {
     const retrievalTopK = req.options?.retrievalTopK ?? 5;
     const maxEvidenceChars = req.options?.maxEvidenceChars ?? 3000;
     const baseRetrievalScoreThreshold = Number(process.env.RAG_SCORE_THRESHOLD ?? 0.08);
-    const retrievalScoreThreshold = selectedDocIds.length > 0 ? Math.min(baseRetrievalScoreThreshold, 0.03) : baseRetrievalScoreThreshold;
+    const retrievalScoreThreshold =
+      selectedDocIds.length > 0 ? Math.min(baseRetrievalScoreThreshold, 0.03) : baseRetrievalScoreThreshold;
     const rerankWeight = Number(process.env.RAG_RERANK_WEIGHT ?? 0.65);
     let evidenceSystemMessage: { role: 'system'; content: string } | null = null;
     let citations: Array<{ refId: string; label: string; snippet: string }> = [];
@@ -140,10 +142,22 @@ export class ChatService {
     let filteredCount = 0;
     let evidenceCount = 0;
     if (useLocalKnowledge) {
-      const candidates = await store.lexicalRetrieveEvidence(req.userMessage, Math.max(retrievalTopK * 4, 12), selectedDocIds);
+      const candidates = await store.lexicalRetrieveEvidence(
+        req.userMessage,
+        Math.max(retrievalTopK * 4, 12),
+        selectedDocIds
+      );
       candidateCount = candidates.length;
-      const reranked = await this.rerankEvidenceByEmbeddings(providerKind, req.requestId, req.userMessage, candidates, rerankWeight);
-      const filtered = reranked.filter((e) => (Number(e.score) || 0) >= retrievalScoreThreshold).slice(0, retrievalTopK);
+      const reranked = await this.rerankEvidenceByEmbeddings(
+        providerKind,
+        req.requestId,
+        req.userMessage,
+        candidates,
+        rerankWeight
+      );
+      const filtered = reranked
+        .filter((e) => (Number(e.score) || 0) >= retrievalScoreThreshold)
+        .slice(0, retrievalTopK);
       filteredCount = filtered.length;
       const deduped = filtered.filter((item, idx, arr) => arr.findIndex((x) => x.text === item.text) === idx);
       const trimmedEvidence = deduped.map((e) => ({
@@ -167,7 +181,10 @@ export class ChatService {
     }
 
     const profileSystemMessage = profile ? buildUserProfileSystemMessage(profile) : null;
-    const prefixMessages = [profileSystemMessage, evidenceSystemMessage].filter(Boolean) as Array<{ role: 'system'; content: string }>;
+    const prefixMessages = [profileSystemMessage, evidenceSystemMessage].filter(Boolean) as Array<{
+      role: 'system';
+      content: string;
+    }>;
     const providerMessages = [...prefixMessages, ...toProviderMessages(ctx)];
     return {
       store,
@@ -191,7 +208,13 @@ export class ChatService {
     providerKind: string,
     requestId: string,
     query: string,
-    candidates: Array<{ id: string; source: { path: string }; text: string; score: number; metadata?: { chunkIndex?: number } }>,
+    candidates: Array<{
+      id: string;
+      source: { path: string };
+      text: string;
+      score: number;
+      metadata?: { chunkIndex?: number };
+    }>,
     rerankWeight: number
   ) {
     if (candidates.length === 0) return candidates;
@@ -226,7 +249,8 @@ export class ChatService {
     const assistantMessageId = randomUUID();
 
     try {
-      const { store, providerKind, providerMessages, citations, noEvidenceFallbackText, debug } = await this.buildGenerationContext(req);
+      const { store, providerKind, providerMessages, citations, noEvidenceFallbackText, debug } =
+        await this.buildGenerationContext(req);
       if (noEvidenceFallbackText) {
         const assistantMsg: ChatMessage = {
           id: assistantMessageId,
@@ -292,7 +316,8 @@ export class ChatService {
   async sendMessageStream(
     req: SendChatRequest,
     onDelta: (delta: string) => void,
-    shouldStop?: () => boolean
+    shouldStop?: () => boolean,
+    clientSignal?: AbortSignal
   ): Promise<{
     reply: { text: string; citations: Array<{ refId: string; label: string; snippet: string }> };
     persisted: { conversationId: string; assistantMessageId: string };
@@ -305,16 +330,26 @@ export class ChatService {
     };
   }> {
     const conversationId = req.conversationId;
-    const assistantMessageId = randomUUID();
+    const assistantMessageId = String(req.assistantMessageId ?? '').trim() || randomUUID();
     const streamAbortController = new AbortController();
+    const abortStream = () => {
+      if (!streamAbortController.signal.aborted) {
+        streamAbortController.abort();
+      }
+    };
+    if (clientSignal) {
+      if (clientSignal.aborted) abortStream();
+      else clientSignal.addEventListener('abort', abortStream, { once: true });
+    }
     let streamedText = '';
     const stopWatcher = setInterval(() => {
       if (shouldStop?.()) {
-        streamAbortController.abort();
+        abortStream();
       }
     }, 80);
     try {
-      const { store, providerKind, providerMessages, citations, noEvidenceFallbackText, debug } = await this.buildGenerationContext(req);
+      const { store, providerKind, providerMessages, citations, noEvidenceFallbackText, debug } =
+        await this.buildGenerationContext(req);
       if (noEvidenceFallbackText) {
         onDelta(noEvidenceFallbackText);
         const assistantMsg: ChatMessage = {
@@ -351,6 +386,21 @@ export class ChatService {
         },
         { signal: streamAbortController.signal, shouldStop }
       );
+
+      if (clientSignal?.aborted || streamAbortController.signal.aborted) {
+        const partialText = String(streamedText).trim();
+        const content = partialText || '（生成已中断）';
+        await store.appendMessage({
+          id: assistantMessageId,
+          conversationId,
+          role: 'assistant',
+          content,
+          citations: [],
+          createdAt: nowIso()
+        });
+        throw { code: 'ABORTED', message: 'generation aborted', retryable: false, partialText: content };
+      }
+
       const assistantMsg: ChatMessage = {
         id: assistantMessageId,
         conversationId,
@@ -369,17 +419,20 @@ export class ChatService {
       if (String(e?.code) === 'ABORTED') {
         const partialText = String(e?.partialText ?? streamedText ?? '').trim();
         const content = partialText || '（生成已中断）';
-        const assistantMsg: ChatMessage = {
-          id: assistantMessageId,
-          conversationId,
-          role: 'assistant',
-          content,
-          citations: [],
-          createdAt: nowIso()
-        };
         const store = await this.storePromise;
-        await store.appendMessage(assistantMsg);
-        throw { code: 'ABORTED', message: 'generation aborted', retryable: false };
+        const existing = await store.listMessages(conversationId, 200);
+        const alreadySaved = existing.messages.some((m) => m.id === assistantMessageId);
+        if (!alreadySaved) {
+          await store.appendMessage({
+            id: assistantMessageId,
+            conversationId,
+            role: 'assistant',
+            content,
+            citations: [],
+            createdAt: nowIso()
+          });
+        }
+        throw { code: 'ABORTED', message: 'generation aborted', retryable: false, partialText: content };
       }
       const code = e?.code ? String(e.code) : ErrorCodes.INTERNAL_PROVIDER_ERROR;
       const retryable = Boolean(e?.retryable ?? true);
@@ -391,4 +444,3 @@ export class ChatService {
     }
   }
 }
-

@@ -4,6 +4,11 @@ import { ChatHistoryStore } from '../db/chat-history-store';
 import { AIProviderRouter } from '../ai/provider-router';
 import { ChatService } from './chat.service';
 import type { SendChatRequest } from '@ai-agent/shared';
+import {
+  mergeAbortSignals,
+  releaseConversationStreamControl,
+  takeConversationStreamControl
+} from './conversation-stream-registry';
 import type { Response } from 'express';
 import type { Request } from 'express';
 import { Req, Res } from '@nestjs/common';
@@ -67,9 +72,7 @@ export class ChatController {
     if (!owns) return err({ code: 'FORBIDDEN', message: '无权访问该会话', retryable: false });
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 50;
     const before =
-      beforeCreatedAt && beforeId
-        ? { createdAt: String(beforeCreatedAt).trim(), id: String(beforeId).trim() }
-        : null;
+      beforeCreatedAt && beforeId ? { createdAt: String(beforeCreatedAt).trim(), id: String(beforeId).trim() } : null;
     return ok(await this.chatService.listMessages(conversationId, limit, before));
   }
 
@@ -180,11 +183,14 @@ export class ChatController {
     const conversationId = String(body?.conversationId ?? '').trim();
     const userMessage = String(body?.userMessage ?? '').trim();
     if (!conversationId || !userMessage) {
-      res.status(400).json(err({ code: 'INVALID_PARAMS', message: 'conversationId 和 userMessage 必填', retryable: false }));
+      res
+        .status(400)
+        .json(err({ code: 'INVALID_PARAMS', message: 'conversationId 和 userMessage 必填', retryable: false }));
       return;
     }
     const requestId = String(body?.requestId ?? randomUUID());
-    const req: SendChatRequest = { requestId, conversationId, userMessage, options: body?.options };
+    const assistantMessageId = String(body?.assistantMessageId ?? '').trim() || undefined;
+    const req: SendChatRequest = { requestId, conversationId, userMessage, assistantMessageId, options: body?.options };
     (req as any).userId = user.id;
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -192,19 +198,30 @@ export class ChatController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
     let clientClosed = false;
-    httpReq.on('close', () => {
+    const clientAbort = new AbortController();
+    const onClientGone = () => {
       clientClosed = true;
-    });
+      clientAbort.abort();
+    };
+    httpReq.on('aborted', onClientGone);
+    httpReq.on('close', onClientGone);
     const writeEvent = (event: string, data: any) => {
       if (clientClosed) return;
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
+    const convStreamSignal = takeConversationStreamControl(conversationId);
+    const streamSignal = mergeAbortSignals([clientAbort.signal, convStreamSignal]);
     try {
-      writeEvent('start', { requestId, conversationId });
-      const data = await this.chatService.sendMessageStream(req, (delta) => writeEvent('delta', { delta }), () => clientClosed);
+      writeEvent('start', { requestId, conversationId, assistantMessageId: req.assistantMessageId });
+      const data = await this.chatService.sendMessageStream(
+        req,
+        (delta) => writeEvent('delta', { delta, requestId, assistantMessageId: req.assistantMessageId }),
+        () => clientClosed,
+        streamSignal
+      );
       if (!clientClosed) {
-        writeEvent('done', data);
+        writeEvent('done', { ...data, requestId, assistantMessageId: req.assistantMessageId });
         res.end();
       }
     } catch (e: any) {
@@ -218,7 +235,8 @@ export class ChatController {
         retryable: Boolean(e?.retryable ?? true)
       });
       if (!clientClosed) res.end();
+    } finally {
+      releaseConversationStreamControl(conversationId, convStreamSignal);
     }
   }
 }
-

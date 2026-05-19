@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { loadRootEnvFiles } from './env/load-root-env';
+import { warnIfGeminiUnreachable } from './ai/langchain/gemini-connectivity';
 
 function buildCorsOptions() {
   const nodeEnv = process.env.NODE_ENV || 'development';
@@ -49,11 +50,26 @@ async function bootstrap() {
   const envLoad = loadRootEnvFiles();
   if (envLoad?.loadedFiles.length) {
     // eslint-disable-next-line no-console
-    console.log(`[sidecar] env files loaded (${envLoad.loadedFiles.length}): ${envLoad.loadedFiles.map((p) => path.basename(p)).join(' → ')}`);
+    console.log(
+      `[sidecar] env files loaded (${envLoad.loadedFiles.length}): ${envLoad.loadedFiles.map((p) => path.basename(p)).join(' → ')}`
+    );
   } else if (envLoad) {
     // eslint-disable-next-line no-console
     console.warn(`[sidecar] repo root ${envLoad.root} has no .env / .env.local / .env.* files`);
   }
+
+  const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (proxy) {
+    // eslint-disable-next-line no-console
+    console.log(`[sidecar] 出站代理: ${proxy}（undici EnvHttpProxyAgent + NODE_USE_ENV_PROXY）`);
+  } else {
+    // eslint-disable-next-line no-console
+    console.log(
+      '[sidecar] 未配置 HTTPS_PROXY。若仅开系统 VPN(TUN) 应能直连 Google；若仍失败请在 Clash 查看 HTTP 端口并写入 .env'
+    );
+  }
+
+  void warnIfGeminiUnreachable();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const isProd = (process.env.NODE_ENV || 'development') === 'production';
@@ -101,4 +117,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-

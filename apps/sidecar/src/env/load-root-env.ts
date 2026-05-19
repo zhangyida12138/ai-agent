@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import dotenv from 'dotenv';
+import { installGlobalFetchProxy } from './install-fetch-proxy';
 
 function findRepoRoot(startDir: string): string | null {
   let dir = path.resolve(startDir);
@@ -43,6 +44,7 @@ function fallbackLoadDotEnv(): RootEnvLoadResult | null {
     if (fs.existsSync(file)) {
       const merged = dotenv.parse(fs.readFileSync(file, 'utf8'));
       applyMergedEnv(merged, injected);
+      enableFetchProxyFromEnv();
       return { root: dir, loadedFiles: [file] };
     }
     const parent = path.dirname(dir);
@@ -75,9 +77,23 @@ export function loadRootEnvFiles(): RootEnvLoadResult | null {
   const loadedFiles: string[] = [];
   for (const file of files) {
     if (!fs.existsSync(file)) continue;
-    Object.assign(merged, dotenv.parse(fs.readFileSync(file, 'utf8')));
+    const parsed = dotenv.parse(fs.readFileSync(file, 'utf8'));
+    for (const [key, value] of Object.entries(parsed)) {
+      // 后加载文件中的空值不覆盖先前已配置的非空值（避免 .env.production 占位空行清掉 .env 里的密钥）
+      if (value === '' && merged[key]) continue;
+      merged[key] = value;
+    }
     loadedFiles.push(file);
   }
   applyMergedEnv(merged, injected);
+  enableFetchProxyFromEnv();
   return { root, loadedFiles };
+}
+
+/**
+ * Node 内置 fetch 默认不走 HTTPS_PROXY；需开启 NODE_USE_ENV_PROXY（Node 22+）。
+ * @see https://nodejs.org/api/cli.html#node_use_env_proxyvalue
+ */
+function enableFetchProxyFromEnv() {
+  installGlobalFetchProxy();
 }

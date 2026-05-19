@@ -16,7 +16,8 @@ export function AppLayout() {
   const MAX_AVATAR_BYTES = 1024 * 1024; // 1MB
   const { user, logout, updateUserProfile } = useAuth();
   const { path, navigate } = useRouter();
-  const tab: 'chat' | 'knowledge' | 'settings' = path === '/knowledge' ? 'knowledge' : path === '/settings' ? 'settings' : 'chat';
+  const tab: 'chat' | 'knowledge' | 'settings' =
+    path === '/knowledge' ? 'knowledge' : path === '/settings' ? 'settings' : 'chat';
 
   const chat = useChatModule();
   const kb = useKnowledgeModule();
@@ -112,7 +113,16 @@ export function AppLayout() {
     setShowDraftCustomField(false);
     setProfileAvatarData(user?.avatarData || null);
     setIsProfileEditing(false);
-  }, [user?.id, user?.displayName, user?.age, user?.gender, user?.occupation, user?.needs, user?.customFields, user?.avatarData]);
+  }, [
+    user?.id,
+    user?.displayName,
+    user?.age,
+    user?.gender,
+    user?.occupation,
+    user?.needs,
+    user?.customFields,
+    user?.avatarData
+  ]);
 
   return (
     <div className={`app-shell ${styles.shell}`}>
@@ -141,7 +151,11 @@ export function AppLayout() {
       {sidebarCollapsed ? (
         <div className={styles.sidebarCollapsed}>
           <img className={styles.collapsedBrandIcon} src="/icon.svg" alt={`${BRAND_TITLE} 图标`} title={BRAND_TITLE} />
-          <button className={`wx-btn ghost ${styles.expandBtn}`} onClick={() => setSidebarCollapsed(false)} title="展开侧栏">
+          <button
+            className={`wx-btn ghost ${styles.expandBtn}`}
+            onClick={() => setSidebarCollapsed(false)}
+            title="展开侧栏"
+          >
             <span aria-hidden>▶</span>
           </button>
           <button
@@ -195,10 +209,10 @@ export function AppLayout() {
             chat.setActiveId(id);
             navigate('/chat');
           }}
-        onNew={() => {
-          chat.newConversation();
-          navigate('/chat');
-        }}
+          onNew={() => {
+            chat.newConversation();
+            navigate('/chat');
+          }}
           onProfile={() => navigate('/settings')}
           onSettingsMenu={(e) => {
             e.preventDefault();
@@ -267,6 +281,7 @@ export function AppLayout() {
         {tab === 'chat' ? (
           <ChatView
             title={chat.activeTitle}
+            conversationId={chat.activeId}
             messages={chat.messages}
             input={chat.input}
             loading={chat.loading}
@@ -274,11 +289,11 @@ export function AppLayout() {
             onInput={chat.setInput}
             onSend={() => chat.sendMessage(kb.useLocalKnowledge, kb.selectedDocIds)}
             onStop={chat.stopGenerating}
-          onCopyToast={(text) => chat.setToast(text)}
-          messagesHasOlder={chat.messagesHasOlder}
-          loadingOlderMessages={chat.loadingOlderMessages}
-          onLoadOlderMessages={() => chat.loadOlderMessages()}
-        />
+            onCopyToast={(text) => chat.setToast(text)}
+            messagesHasOlder={chat.messagesHasOlder}
+            loadingOlderMessages={chat.loadingOlderMessages}
+            onLoadOlderMessages={() => chat.loadOlderMessages()}
+          />
         ) : tab === 'knowledge' ? (
           <div className={styles.knowledgePage}>
             <div className={styles.chatTitle}>本地知识库管理</div>
@@ -336,7 +351,9 @@ export function AppLayout() {
                             occupation: profileOccupation.trim() || null,
                             needs: profileNeeds.trim() || null,
                             avatarData: profileAvatarData,
-                            customFields: profileCustomFields.map((x) => ({ key: x.key.trim(), value: x.value.trim() })).filter((x) => x.key)
+                            customFields: profileCustomFields
+                              .map((x) => ({ key: x.key.trim(), value: x.value.trim() }))
+                              .filter((x) => x.key)
                           });
                           setIsProfileEditing(false);
                           setSuccessModal('个人信息保存成功');
@@ -387,7 +404,9 @@ export function AppLayout() {
                   </>
                 ) : (
                   <label className={styles.profileAvatarUploadLabel} htmlFor="profile-avatar-upload">
-                    <span className={styles.profileAvatarFallback}>{(profileName || user?.username || 'U').slice(0, 1).toUpperCase()}</span>
+                    <span className={styles.profileAvatarFallback}>
+                      {(profileName || user?.username || 'U').slice(0, 1).toUpperCase()}
+                    </span>
                   </label>
                 )}
               </div>
@@ -395,7 +414,12 @@ export function AppLayout() {
                 <div className={styles.profileField}>
                   <div className={styles.profileFieldLabel}>姓名</div>
                   {isProfileEditing ? (
-                    <input className="wx-input" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="请输入姓名（可选）" />
+                    <input
+                      className="wx-input"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder="请输入姓名（可选）"
+                    />
                   ) : (
                     <div>{profileName || '-'}</div>
                   )}
@@ -403,7 +427,12 @@ export function AppLayout() {
                 <div className={styles.profileField}>
                   <div className={styles.profileFieldLabel}>年龄</div>
                   {isProfileEditing ? (
-                    <input className="wx-input" value={profileAge} onChange={(e) => setProfileAge(e.target.value)} placeholder="请输入年龄（可选）" />
+                    <input
+                      className="wx-input"
+                      value={profileAge}
+                      onChange={(e) => setProfileAge(e.target.value)}
+                      placeholder="请输入年龄（可选）"
+                    />
                   ) : (
                     <div>{profileAge || '-'}</div>
                   )}
@@ -411,7 +440,12 @@ export function AppLayout() {
                 <div className={styles.profileField}>
                   <div className={styles.profileFieldLabel}>性别</div>
                   {isProfileEditing ? (
-                    <input className="wx-input" value={profileGender} onChange={(e) => setProfileGender(e.target.value)} placeholder="请输入性别（可选）" />
+                    <input
+                      className="wx-input"
+                      value={profileGender}
+                      onChange={(e) => setProfileGender(e.target.value)}
+                      placeholder="请输入性别（可选）"
+                    />
                   ) : (
                     <div>{profileGender || '-'}</div>
                   )}
@@ -419,7 +453,12 @@ export function AppLayout() {
                 <div className={styles.profileField}>
                   <div className={styles.profileFieldLabel}>职业</div>
                   {isProfileEditing ? (
-                    <input className="wx-input" value={profileOccupation} onChange={(e) => setProfileOccupation(e.target.value)} placeholder="请输入职业（可选）" />
+                    <input
+                      className="wx-input"
+                      value={profileOccupation}
+                      onChange={(e) => setProfileOccupation(e.target.value)}
+                      placeholder="请输入职业（可选）"
+                    />
                   ) : (
                     <div>{profileOccupation || '-'}</div>
                   )}
@@ -428,7 +467,13 @@ export function AppLayout() {
               <div className={styles.profileField}>
                 <div className={styles.profileFieldLabel}>需求/偏好</div>
                 {isProfileEditing ? (
-                  <textarea className="wx-input" rows={5} value={profileNeeds} onChange={(e) => setProfileNeeds(e.target.value)} placeholder="例如：偏向简洁回答，给可执行步骤" />
+                  <textarea
+                    className="wx-input"
+                    rows={5}
+                    value={profileNeeds}
+                    onChange={(e) => setProfileNeeds(e.target.value)}
+                    placeholder="例如：偏向简洁回答，给可执行步骤"
+                  />
                 ) : (
                   <div>{profileNeeds || '-'}</div>
                 )}
@@ -444,11 +489,17 @@ export function AppLayout() {
                           className={`wx-input ${styles.profileFieldRowGrow}`}
                           value={field.value}
                           onChange={(e) =>
-                            setProfileCustomFields((prev) => prev.map((x, i) => (i === idx ? { ...x, value: e.target.value } : x)))
+                            setProfileCustomFields((prev) =>
+                              prev.map((x, i) => (i === idx ? { ...x, value: e.target.value } : x))
+                            )
                           }
                           placeholder="字段值"
                         />
-                        <button className={`wx-btn ghost ${styles.iconBtn}`} title="删除字段" onClick={() => setProfileCustomFields((prev) => prev.filter((_, i) => i !== idx))}>
+                        <button
+                          className={`wx-btn ghost ${styles.iconBtn}`}
+                          title="删除字段"
+                          onClick={() => setProfileCustomFields((prev) => prev.filter((_, i) => i !== idx))}
+                        >
                           <span aria-hidden>🗑</span>
                         </button>
                       </div>
@@ -459,7 +510,9 @@ export function AppLayout() {
                 ))}
                 {isProfileEditing ? (
                   <>
-                    <button className="wx-btn ghost" onClick={() => setShowDraftCustomField(true)}>新增自定义字段</button>
+                    <button className="wx-btn ghost" onClick={() => setShowDraftCustomField(true)}>
+                      新增自定义字段
+                    </button>
                     {showDraftCustomField ? (
                       <div className={styles.row}>
                         <input
@@ -551,7 +604,10 @@ export function AppLayout() {
         </div>
       ) : null}
       {settingsMenu ? (
-        <div className={styles.contextMenu} style={{ left: settingsMenu.x, top: settingsMenu.y, transform: 'translateY(calc(-100% - 8px))' }}>
+        <div
+          className={styles.contextMenu}
+          style={{ left: settingsMenu.x, top: settingsMenu.y, transform: 'translateY(calc(-100% - 8px))' }}
+        >
           <button
             onClick={() => {
               setTheme((prev) => {
@@ -615,7 +671,9 @@ export function AppLayout() {
             <div className={styles.confirmTitle}>确认删除会话</div>
             <div className={styles.confirmText}>删除后将移除该会话及其消息，无法恢复。</div>
             <div className={styles.confirmActions}>
-              <button className="wx-btn ghost" onClick={() => setPendingDeleteConversationId(null)}>取消</button>
+              <button className="wx-btn ghost" onClick={() => setPendingDeleteConversationId(null)}>
+                取消
+              </button>
               <button
                 className="wx-btn danger"
                 onClick={async () => {
@@ -636,7 +694,9 @@ export function AppLayout() {
             <div className={styles.confirmTitle}>确认删除文档</div>
             <div className={styles.confirmText}>删除后该文档及其知识分块将被移除，无法恢复。</div>
             <div className={styles.confirmActions}>
-              <button className="wx-btn ghost" onClick={() => setPendingDeleteDoc(false)}>取消</button>
+              <button className="wx-btn ghost" onClick={() => setPendingDeleteDoc(false)}>
+                取消
+              </button>
               <button
                 className="wx-btn danger"
                 onClick={async () => {
@@ -656,7 +716,9 @@ export function AppLayout() {
             <div className={styles.confirmTitle}>确认退出登录</div>
             <div className={styles.confirmText}>退出后需要重新登录才能继续使用。</div>
             <div className={styles.confirmActions}>
-              <button className="wx-btn ghost" onClick={() => setPendingLogoutConfirm(false)}>取消</button>
+              <button className="wx-btn ghost" onClick={() => setPendingLogoutConfirm(false)}>
+                取消
+              </button>
               <button
                 className="wx-btn danger"
                 onClick={() => {
@@ -677,16 +739,14 @@ export function AppLayout() {
             <div className={styles.confirmTitle}>错误</div>
             <div className={styles.confirmText}>{errorModal}</div>
             <div className={styles.confirmActions}>
-              <button className="wx-btn primary" onClick={() => setErrorModal(null)}>我知道了</button>
+              <button className="wx-btn primary" onClick={() => setErrorModal(null)}>
+                我知道了
+              </button>
             </div>
           </div>
         </div>
       ) : null}
-      {successModal ? (
-        <div className={styles.successToast}>
-          {successModal}
-        </div>
-      ) : null}
+      {successModal ? <div className={styles.successToast}>{successModal}</div> : null}
     </div>
   );
 }

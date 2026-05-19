@@ -41,7 +41,7 @@ function attachDisposeCleanup(agent: PageAgent, agentRef: React.MutableRefObject
 
 async function instantiatePageAgent(): Promise<PageAgent> {
   const { PageAgent } = await import('page-agent');
-  const model = (import.meta.env.VITE_PAGE_AGENT_MODEL as string | undefined)?.trim() || 'deepseek-chat';
+  const model = (import.meta.env.VITE_PAGE_AGENT_MODEL as string | undefined)?.trim() || 'glm-4-flash';
   const baseURL = pageAgentLlmBaseUrl();
   const language = PAGE_AGENT_LANG === 'en-US' || PAGE_AGENT_LANG === 'zh-CN' ? PAGE_AGENT_LANG : 'zh-CN';
   return new PageAgent({
@@ -54,8 +54,8 @@ async function instantiatePageAgent(): Promise<PageAgent> {
 
 /**
  * 在已登录会话中初始化 Page Agent：
- * - `baseURL` 指向本应用 Sidecar 的 OpenAI 兼容代理（同源的 `/api/...` 或 `VITE_SIDECAR_URL`），**不把 DashScope / DeepSeek 等模型密钥写进前端**；
- * - `customFetch` 携带用户登录 Bearer，由服务端校验后再用 `DASHSCOPE_API_KEY` 或 `DEEPSEEK_API_KEY` 调用上游（见 `PAGE_AGENT_UPSTREAM`）。
+ * - `baseURL` 指向本应用 Sidecar 的 OpenAI 兼容代理（同源的 `/api/...` 或 `VITE_SIDECAR_URL`），**不把模型密钥写进前端**；
+ * - `customFetch` 携带用户登录 Bearer；服务端按智谱 → Gemini → DeepSeek 故障转移调用上游（可用 `PAGE_AGENT_FAILOVER_ORDER` 配置）。
  * - 不传 `apiKey`：page-agent 仅在 `apiKey` 非空时才会加 `Authorization: Bearer <模型密钥>`，此处由代理负责鉴权到上游。
  *
  * 说明：用户在面板空闲时点「X」会触发库内 `agent.dispose()`，面板 DOM 会被移除。此处在 `dispose` 时清空引用，并在 Ctrl+F 时按需重新创建实例，才能再次打开面板。

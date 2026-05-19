@@ -1,6 +1,6 @@
 /**
  * Page Agent 使用的 OpenAI 兼容 baseURL（不含末尾斜杠），实际请求为 `${baseURL}/chat/completions`。
- * 经 Sidecar 转发到上游（`PAGE_AGENT_UPSTREAM`：deepseek 或 dashscope），模型密钥仅服务端读取。
+ * 经 Sidecar 转发；默认智谱 → Gemini → DeepSeek 故障转移（`PAGE_AGENT_FAILOVER_ORDER` 可覆盖）。
  */
 export function pageAgentLlmBaseUrl(): string {
   const sidecar = (import.meta.env.VITE_SIDECAR_URL as string | undefined) || '/api';

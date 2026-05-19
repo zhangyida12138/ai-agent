@@ -17,14 +17,22 @@ function roleLabel(role: ChatMessage['role']) {
 }
 
 function escapeHtml(input: string) {
-  return input.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+  return input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function markdownToHtml(md: string) {
   const src = escapeHtml(md || '');
   const codeBlocks: string[] = [];
   // 匹配三个反引号包裹的内容，将其转为 HTML 的 <pre><code> 格式，存入一个叫 codeBlocks 的数组中，并用一个占位符（如 @@CODEBLOCK_0@@）暂时替代。
-  let text = src.replace(/```([\s\S]*?)```/g, (_, code) => `@@CODEBLOCK_${codeBlocks.push(`<pre><code>${code}</code></pre>`) - 1}@@`);
+  let text = src.replace(
+    /```([\s\S]*?)```/g,
+    (_, code) => `@@CODEBLOCK_${codeBlocks.push(`<pre><code>${code}</code></pre>`) - 1}@@`
+  );
   text = text.replace(/^### (.*)$/gm, '<h3>$1</h3>');
   text = text.replace(/^## (.*)$/gm, '<h2>$1</h2>');
   text = text.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -40,6 +48,7 @@ function markdownToHtml(md: string) {
 
 export function ChatView(props: {
   title: string;
+  conversationId?: string;
   messages: ChatMessage[];
   input: string;
   loading: boolean;
@@ -54,6 +63,7 @@ export function ChatView(props: {
 }) {
   const {
     title,
+    conversationId,
     messages,
     input,
     loading,
@@ -69,6 +79,7 @@ export function ChatView(props: {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const skipScrollToBottomRef = useRef(false);
   const scrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
+  const forceBottomConvRef = useRef<string | null>(null);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   const syncJumpToBottomVisibility = useCallback(() => {
@@ -131,6 +142,25 @@ export function ChatView(props: {
   };
 
   useLayoutEffect(() => {
+    if (!conversationId) return;
+    forceBottomConvRef.current = conversationId;
+    skipScrollToBottomRef.current = false;
+  }, [conversationId]);
+
+  useLayoutEffect(() => {
+    if (!conversationId || loadingOlderMessages) return;
+    if (forceBottomConvRef.current !== conversationId) return;
+    const messagesMatchConversation =
+      messages.length === 0 || messages.every((m) => m.conversationId === conversationId);
+    if (!messagesMatchConversation) return;
+    const el = panelRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    setShowJumpToBottom(false);
+    forceBottomConvRef.current = null;
+  }, [conversationId, messages, loadingOlderMessages]);
+
+  useLayoutEffect(() => {
     const el = panelRef.current;
     const saved = scrollRestoreRef.current;
     if (!el || !saved) return;
@@ -185,42 +215,52 @@ export function ChatView(props: {
       <div className={styles.chatMainColumn}>
         <div className={styles.messagePanelWrap}>
           <div ref={panelRef} className={styles.messagePanel}>
-          {loadingOlderMessages ? <div className="stats-tip">加载更早的消息…</div> : null}
-          {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
-          {messages.map((m) => (
-          <div key={m.id} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : ''}`}>
-            <div className={styles.role}>{roleLabel(m.role)} · {formatDisplayDateTime(m.createdAt)}</div>
-            <div className={`${styles.bubble} ${m.role === 'assistant' ? styles.assistantBubble : styles.userBubble}`}>
-              <button
-                type="button"
-                className={styles.copyMsgBtn}
-                onClick={async () => {
-                  const ok = await copyTextToClipboard(m.content || '');
-                  onCopyToast(ok ? '复制成功' : '复制失败，请使用 HTTPS 或允许剪贴板权限');
-                }}
-              >
-                复制
-              </button>
-              {m.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} /> : m.content}
-            </div>
-            {m.role === 'assistant' && m.citations && m.citations.length > 0 ? (
-              <div className={styles.citationBox}>
-                <div className={styles.citationTitle}>引用</div>
-                {m.citations.map((c) => (
-                  <div key={c.refId}>
-                    <div className={styles.citationLabel}>{c.label}</div>
-                    <div className={styles.citationSnippet}>{c.snippet}</div>
+            {loadingOlderMessages ? <div className="stats-tip">加载更早的消息…</div> : null}
+            {messages.length === 0 ? <div className="stats-tip">暂无消息，发送一条试试。</div> : null}
+            {messages.map((m) => (
+              <div key={m.id} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : ''}`}>
+                <div className={styles.role}>
+                  {roleLabel(m.role)} · {formatDisplayDateTime(m.createdAt)}
+                </div>
+                <div
+                  className={`${styles.bubble} ${m.role === 'assistant' ? styles.assistantBubble : styles.userBubble}`}
+                >
+                  <button
+                    type="button"
+                    className={styles.copyMsgBtn}
+                    onClick={async () => {
+                      const ok = await copyTextToClipboard(m.content || '');
+                      onCopyToast(ok ? '复制成功' : '复制失败，请使用 HTTPS 或允许剪贴板权限');
+                    }}
+                  >
+                    复制
+                  </button>
+                  {m.role === 'assistant' ? (
+                    <div dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '...') }} />
+                  ) : (
+                    m.content
+                  )}
+                </div>
+                {m.role === 'assistant' && m.citations && m.citations.length > 0 ? (
+                  <div className={styles.citationBox}>
+                    <div className={styles.citationTitle}>引用</div>
+                    {m.citations.map((c) => (
+                      <div key={c.refId}>
+                        <div className={styles.citationLabel}>{c.label}</div>
+                        <div className={styles.citationSnippet}>{c.snippet}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : null}
+                {m.role === 'assistant' && m.ragDebug ? (
+                  <div className={styles.debugBox}>
+                    调试：RAG={m.ragDebug.useLocalKnowledge ? 'on' : 'off'}，选中文档={m.ragDebug.selectedDocCount}
+                    ，候选={m.ragDebug.candidateCount}，过滤后={m.ragDebug.filteredCount}，最终证据=
+                    {m.ragDebug.evidenceCount}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-            {m.role === 'assistant' && m.ragDebug ? (
-              <div className={styles.debugBox}>
-                调试：RAG={m.ragDebug.useLocalKnowledge ? 'on' : 'off'}，选中文档={m.ragDebug.selectedDocCount}，候选={m.ragDebug.candidateCount}，过滤后={m.ragDebug.filteredCount}，最终证据={m.ragDebug.evidenceCount}
-              </div>
-            ) : null}
-          </div>
-          ))}
+            ))}
           </div>
           {showJumpToBottom ? (
             <button
@@ -242,24 +282,27 @@ export function ChatView(props: {
           aria-orientation="horizontal"
         />
         <div className={styles.composer}>
-        <textarea
-          className={`wx-input ${styles.composerTextarea}`}
-          value={input}
-          onChange={(e) => onInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !loading && input.trim()) {
-              e.preventDefault();
-              onSend();
-            }
-          }}
-          rows={1}
-          style={{ height: composerPx }}
-          placeholder="输入消息...（Enter发送，Shift+Enter换行）"
-          disabled={loading}
-        />
-        <button className={`wx-btn primary ${styles.sendBtn}`} onClick={loading ? onStop : onSend} disabled={!loading && !input.trim()}>
-          {loading ? '中断生成' : '发送'}
-        </button>
+          <textarea
+            className={`wx-input ${styles.composerTextarea}`}
+            value={input}
+            onChange={(e) => onInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+            rows={1}
+            style={{ height: composerPx }}
+            placeholder={loading ? '输入新问题将自动停止当前生成…' : '输入消息...（Enter发送，Shift+Enter换行）'}
+          />
+          <button
+            className={`wx-btn primary ${styles.sendBtn}`}
+            onClick={loading && !input.trim() ? onStop : onSend}
+            disabled={!loading && !input.trim()}
+          >
+            {loading ? (input.trim() ? '发送新问题' : '中断生成') : '发送'}
+          </button>
         </div>
       </div>
     </div>

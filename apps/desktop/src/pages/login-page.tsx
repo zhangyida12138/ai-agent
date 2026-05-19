@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BRAND_EN, BRAND_SLOGAN_EN, BRAND_ZH_SPACE } from '../config/brand';
+import { REGISTRATION_DISABLED, REGISTRATION_DISABLED_HINT } from '../config/auth';
 import { useAuth } from '../modules/auth/auth';
 import { useRouter } from '../modules/routing/router';
 import styles from './auth-page.module.css';
@@ -71,7 +72,18 @@ export function LoginPage() {
           {loading ? '处理中...' : '登录'}
         </button>
         <div className={styles.authLinkRow}>
-          <button type="button" className={styles.authLink} onClick={() => navigate('/auth/register')} disabled={loading}>
+          <button
+            type="button"
+            className={styles.authLink}
+            onClick={() => {
+              if (REGISTRATION_DISABLED) {
+                setHint(REGISTRATION_DISABLED_HINT);
+                return;
+              }
+              navigate('/auth/register');
+            }}
+            disabled={loading}
+          >
             没有账号？去注册
           </button>
         </div>

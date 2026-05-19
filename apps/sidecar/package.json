@@ -10,10 +10,14 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "cross-env NODE_ENV=production node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"(skip)\""
+    "lint": "echo \"(skip)\"",
+    "check:gemini": "node scripts/check-gemini-network.mjs"
   },
   "dependencies": {
     "@ai-agent/shared": "workspace:*",
+    "@langchain/core": "^1.1.47",
+    "@langchain/google-genai": "^2.1.31",
+    "@langchain/openai": "^1.4.6",
     "@nestjs/common": "*",
     "@nestjs/core": "*",
     "@nestjs/platform-express": "*",
@@ -21,7 +25,8 @@
     "dotenv": "^17.4.0",
     "reflect-metadata": "*",
     "rxjs": "*",
-    "sql.js": "*"
+    "sql.js": "*",
+    "undici": "^8.3.0"
   },
   "devDependencies": {
     "@types/express": "*",

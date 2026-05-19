@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { deleteConversation, exportConversations, importConversations, listConversations, listMessages, renameConversation, streamChat } from '../../api';
+import {
+  deleteConversation,
+  exportConversations,
+  importConversations,
+  listConversations,
+  listMessages,
+  renameConversation,
+  streamChat
+} from '../../api';
 import { broadcastChatSync, subscribeChatSync } from './chat-sync';
 import { createUuid } from '../../utils/uuid';
 
@@ -53,9 +61,12 @@ function isMsgStrictlyOlder(a: ChatMessage, b: ChatMessage) {
 
 function mergePollMessages(recent: ChatMessage[], prev: ChatMessage[]) {
   if (recent.length === 0) return prev;
+  const recentIds = new Set(recent.map((m) => m.id));
   const oldestRecent = recent[0];
   const prefix = prev.filter((m) => isMsgStrictlyOlder(m, oldestRecent));
-  return [...prefix, ...recent];
+  // 保留尚未写入服务端的本地助手气泡（例如用户中断后服务端还未落库）
+  const pendingLocal = prev.filter((m) => !recentIds.has(m.id) && !isMsgStrictlyOlder(m, oldestRecent));
+  return [...prefix, ...recent, ...pendingLocal];
 }
 
 export function useChatModule() {
@@ -77,6 +88,8 @@ export function useChatModule() {
   const typingDonePayloadRef = useRef<any>(null);
   const typingStreamFinishedRef = useRef(false);
   const streamAbortRef = useRef<AbortController | null>(null);
+  /** 每轮 sendMessage 递增；过期流的 onDelta/onDone 不得写入 UI */
+  const activeGenerationRef = useRef(0);
   /** 用户点击「中断」时为 true；部分浏览器中止 fetch 抛 TypeError 而非 AbortError，不能仅靠 signal / name 判断 */
   const userInterruptRef = useRef(false);
   const TYPING_INTERVAL_MS = 18;
@@ -102,11 +115,32 @@ export function useChatModule() {
     typingStreamFinishedRef.current = false;
   }
 
-  function stopGenerating() {
-    if (!loading) return;
+  /** 停止当前流式请求；可选保留已打出内容并标记为已停止 */
+  function cancelActiveStream(options?: { finalizeAsStopped?: boolean }) {
     userInterruptRef.current = true;
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
+    activeGenerationRef.current += 1;
+
+    if (options?.finalizeAsStopped && typingAssistantIdRef.current) {
+      flushPendingQueueIntoAssistant();
+      const assistantId = typingAssistantIdRef.current;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantId) return m;
+          const text = (m.content || '').trim();
+          return { ...m, content: text || '（生成已中断）' };
+        })
+      );
+    }
+    resetTypingState();
+    userInterruptRef.current = false;
+    setLoading(false);
+  }
+
+  function stopGenerating() {
+    if (!loading) return;
+    cancelActiveStream({ finalizeAsStopped: true });
   }
 
   function flushPendingQueueIntoAssistant() {
@@ -121,6 +155,16 @@ export function useChatModule() {
 
   function finalizeAbortedAssistantMessage() {
     flushPendingQueueIntoAssistant();
+    const assistantId = typingAssistantIdRef.current;
+    if (assistantId) {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantId) return m;
+          const text = (m.content || '').trim();
+          return { ...m, content: text || '（生成已中断）' };
+        })
+      );
+    }
     resetTypingState();
     userInterruptRef.current = false;
     setLoading(false);
@@ -313,13 +357,20 @@ export function useChatModule() {
 
   async function sendMessage(useLocalKnowledge: boolean, selectedDocIds?: string[]) {
     const userMessage = input.trim();
-    if (!userMessage || loading) return;
+    if (!userMessage) return;
+
+    if (loading) {
+      cancelActiveStream({ finalizeAsStopped: true });
+    }
     const nowIso = new Date().toISOString();
     const isNewConversation = !activeId;
     const conversationId = activeId || createUuid();
     if (isNewConversation) {
       const optimisticTitle = userMessage.length > 18 ? `${userMessage.slice(0, 18)}...` : userMessage;
-      setConversations((prev) => [{ id: conversationId, title: optimisticTitle, updatedAt: nowIso }, ...prev.filter((c) => c.id !== conversationId)]);
+      setConversations((prev) => [
+        { id: conversationId, title: optimisticTitle, updatedAt: nowIso },
+        ...prev.filter((c) => c.id !== conversationId)
+      ]);
     } else {
       setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, updatedAt: nowIso } : c)));
     }
@@ -339,10 +390,16 @@ export function useChatModule() {
     setError(null);
     userInterruptRef.current = false;
     setActiveId(conversationId);
+    const assistantId = createUuid();
+    const requestId = createUuid();
+    const generation = ++activeGenerationRef.current;
+    const isActiveGeneration = () => generation === activeGenerationRef.current;
+
     const req = {
-      requestId: createUuid(),
+      requestId,
       conversationId,
       userMessage,
+      assistantMessageId: assistantId,
       options: {
         useLocalKnowledge,
         selectedDocIds: (selectedDocIds || []).filter(Boolean),
@@ -352,33 +409,48 @@ export function useChatModule() {
         maxEvidenceChars: 2000
       }
     };
-    const assistantId = createUuid();
-    setMessages([...optimistic, { id: assistantId, conversationId, role: 'assistant', content: '', createdAt: nowIso }]);
+    setMessages([
+      ...optimistic,
+      { id: assistantId, conversationId, role: 'assistant', content: '', createdAt: nowIso }
+    ]);
     resetTypingState();
     typingAssistantIdRef.current = assistantId;
     const controller = new AbortController();
     streamAbortRef.current = controller;
     let done = false;
-    await streamChat(req, {
-      onDelta: (delta) => {
-        if (!delta) return;
-        typingQueueRef.current.push(...delta.split(''));
-        startTypingLoop();
+    await streamChat(
+      req,
+      {
+        onDelta: (delta, meta) => {
+          if (!isActiveGeneration()) return;
+          if (meta?.requestId && meta.requestId !== requestId) return;
+          if (meta?.assistantMessageId && meta.assistantMessageId !== assistantId) return;
+          if (!delta) return;
+          typingQueueRef.current.push(...delta.split(''));
+          startTypingLoop();
+        },
+        onDone: (data) => {
+          if (!isActiveGeneration()) return;
+          if (data?.requestId && data.requestId !== requestId) return;
+          if (data?.persisted?.assistantMessageId && data.persisted.assistantMessageId !== assistantId) {
+            return;
+          }
+          done = true;
+          typingDonePayloadRef.current = data;
+          typingStreamFinishedRef.current = true;
+          tryFinalizeAssistantMessage();
+        },
+        onError: (e) => {
+          if (!isActiveGeneration()) return;
+          if (e.code === 'ABORTED') return;
+          resetTypingState();
+          userInterruptRef.current = false;
+          setLoading(false);
+          setError(`${e.code || 'STREAM_ERROR'}: ${e.message || '流式响应失败'}`);
+        }
       },
-      onDone: (data) => {
-        done = true;
-        typingDonePayloadRef.current = data;
-        typingStreamFinishedRef.current = true;
-        tryFinalizeAssistantMessage();
-      },
-      onError: (e) => {
-        if (e.code === 'ABORTED') return;
-        resetTypingState();
-        userInterruptRef.current = false;
-        setLoading(false);
-        setError(`${e.code || 'STREAM_ERROR'}: ${e.message || '流式响应失败'}`);
-      }
-    }, { signal: controller.signal }).catch((e: any) => {
+      { signal: controller.signal }
+    ).catch((e: any) => {
       const msg = typeof e?.message === 'string' ? e.message : '';
       const aborted =
         userInterruptRef.current ||
@@ -389,6 +461,9 @@ export function useChatModule() {
       throw e;
     });
     streamAbortRef.current = null;
+    if (!isActiveGeneration()) {
+      return;
+    }
     if (!done) {
       if (controller.signal.aborted || userInterruptRef.current) {
         finalizeAbortedAssistantMessage();

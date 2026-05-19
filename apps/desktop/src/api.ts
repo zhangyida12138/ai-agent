@@ -21,8 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>
     return {
       ok: false,
       code: 'REQUEST_ENTITY_TOO_LARGE',
-      message:
-        '上传内容体积过大',
+      message: '上传内容体积过大',
       retryable: false,
       nextAction: '缩小上传文件，或请管理员调大反代与 Sidecar 请求体限制'
     };
@@ -116,7 +115,7 @@ export async function sendChat(payload: any) {
 export async function streamChat(
   payload: any,
   handlers: {
-    onDelta: (delta: string) => void;
+    onDelta: (delta: string, meta?: { requestId?: string; assistantMessageId?: string }) => void;
     onDone: (data: any) => void;
     onError: (err: { code?: string; message?: string }) => void;
   },
@@ -134,8 +133,7 @@ export async function streamChat(
     if (res.status === 413) {
       handlers.onError({
         code: 'REQUEST_ENTITY_TOO_LARGE',
-        message:
-          '请求体过大（HTTP 413）。请调大反代 client_max_body_size（建议 ≥32m）或缩小对话上下文后再试。'
+        message: '请求体过大（HTTP 413）。请调大反代 client_max_body_size（建议 ≥32m）或缩小对话上下文后再试。'
       });
       return;
     }
@@ -147,12 +145,15 @@ export async function streamChat(
   let buffer = '';
   let eventName = 'message';
   while (true) {
+    if (options?.signal?.aborted) break;
     const { done, value } = await reader.read();
     if (done) break;
+    if (options?.signal?.aborted) break;
     buffer += decoder.decode(value, { stream: true });
     const chunks = buffer.split('\n\n');
     buffer = chunks.pop() ?? '';
     for (const block of chunks) {
+      if (options?.signal?.aborted) break;
       const lines = block.split('\n');
       let dataLine = '';
       for (const line of lines) {
@@ -166,7 +167,7 @@ export async function streamChat(
       } catch {
         continue;
       }
-      if (eventName === 'delta') handlers.onDelta(String(data?.delta ?? ''));
+      if (eventName === 'delta') handlers.onDelta(String(data?.delta ?? ''), data);
       else if (eventName === 'done') handlers.onDone(data);
       else if (eventName === 'error') handlers.onError(data || {});
     }
@@ -235,4 +236,3 @@ export function setAuthToken(token: string) {
 export function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
-
