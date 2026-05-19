@@ -1,3 +1,5 @@
+import { GENERIC_SERVER_ERROR_MESSAGE, logClientError, messageFromEnvelope } from './utils/user-facing-error';
+
 export type Envelope<T> =
   | { ok: true; code: 'SUCCESS'; data: T }
   | { ok: false; code: string; message: string; retryable: boolean; nextAction?: string };
@@ -6,13 +8,39 @@ const SIDECAR_URL = import.meta.env.VITE_SIDECAR_URL || '/api';
 /** localStorage 中会话 token 的 key（供 Page Agent 等与 api 共用） */
 export const AUTH_TOKEN_KEY = 'ai-agent-auth-token';
 
+function transportError(code: string, detail: unknown, retryable = true): Envelope<never> {
+  logClientError(code, detail);
+  return {
+    ok: false,
+    code,
+    message: GENERIC_SERVER_ERROR_MESSAGE,
+    retryable
+  };
+}
+
+function sanitizeEnvelope<T>(parsed: Envelope<T>): Envelope<T> {
+  if (parsed.ok) return parsed;
+  return {
+    ok: false,
+    code: parsed.code,
+    message: messageFromEnvelope(parsed),
+    retryable: parsed.retryable
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(`${SIDECAR_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...authHeader, ...(init?.headers || {}) },
-    ...init
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SIDECAR_URL}${path}`, {
+      headers: { 'Content-Type': 'application/json', ...authHeader, ...(init?.headers || {}) },
+      ...init
+    });
+  } catch (e) {
+    return transportError('NETWORK_ERROR', { path, error: e });
+  }
+
   const contentType = res.headers.get('content-type') || '';
   const isJson = contentType.toLowerCase().includes('application/json');
   const raw = await res.text();
@@ -21,44 +49,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>
     return {
       ok: false,
       code: 'REQUEST_ENTITY_TOO_LARGE',
-      message: '上传内容体积过大',
-      retryable: false,
-      nextAction: '缩小上传文件，或请管理员调大反代与 Sidecar 请求体限制'
+      message: messageFromEnvelope({
+        ok: false,
+        code: 'REQUEST_ENTITY_TOO_LARGE',
+        message: '',
+        retryable: false
+      }),
+      retryable: false
     };
   }
 
   if (!raw) {
-    return {
-      ok: false,
-      code: 'EMPTY_RESPONSE',
-      message: `接口返回空响应: ${path}`,
-      retryable: true,
-      nextAction: '请确认 sidecar 服务已启动并可访问'
-    };
+    return transportError('EMPTY_RESPONSE', { path, status: res.status });
   }
 
   if (!isJson) {
-    const trimmed = raw.trim();
-    const shortPreview = trimmed.slice(0, 120);
-    return {
-      ok: false,
-      code: 'INVALID_RESPONSE_FORMAT',
-      message: `接口未返回 JSON（HTTP ${res.status}）: ${shortPreview}`,
-      retryable: true,
-      nextAction: '请检查前端 /api 代理或 VITE_SIDECAR_URL 配置'
-    };
+    return transportError('INVALID_RESPONSE_FORMAT', {
+      path,
+      status: res.status,
+      bodyPreview: raw.trim().slice(0, 200)
+    });
   }
 
   try {
-    return JSON.parse(raw) as Envelope<T>;
-  } catch {
-    return {
-      ok: false,
-      code: 'INVALID_JSON',
-      message: `接口 JSON 解析失败（HTTP ${res.status}）`,
-      retryable: true,
-      nextAction: '请检查 sidecar 返回内容是否为合法 JSON'
-    };
+    const parsed = JSON.parse(raw) as Envelope<T>;
+    if (!parsed.ok) return sanitizeEnvelope(parsed);
+    return parsed;
+  } catch (e) {
+    return transportError('INVALID_JSON', { path, status: res.status, parseError: e });
   }
 }
 
@@ -123,21 +141,23 @@ export async function streamChat(
 ) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(`${SIDECAR_URL}/chat/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify(payload),
-    signal: options?.signal
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SIDECAR_URL}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify(payload),
+      signal: options?.signal
+    });
+  } catch (e) {
+    logClientError('chat/stream', e);
+    handlers.onError({ code: 'NETWORK_ERROR', message: GENERIC_SERVER_ERROR_MESSAGE });
+    return;
+  }
+
   if (!res.ok || !res.body) {
-    if (res.status === 413) {
-      handlers.onError({
-        code: 'REQUEST_ENTITY_TOO_LARGE',
-        message: '请求体过大（HTTP 413）。请调大反代 client_max_body_size（建议 ≥32m）或缩小对话上下文后再试。'
-      });
-      return;
-    }
-    handlers.onError({ code: 'STREAM_START_FAILED', message: `流式请求失败: HTTP ${res.status}` });
+    logClientError('chat/stream', { status: res.status, statusText: res.statusText });
+    handlers.onError({ code: 'STREAM_START_FAILED', message: GENERIC_SERVER_ERROR_MESSAGE });
     return;
   }
   const reader = res.body.getReader();
@@ -169,7 +189,10 @@ export async function streamChat(
       }
       if (eventName === 'delta') handlers.onDelta(String(data?.delta ?? ''), data);
       else if (eventName === 'done') handlers.onDone(data);
-      else if (eventName === 'error') handlers.onError(data || {});
+      else if (eventName === 'error') {
+        logClientError('chat/stream-sse', data);
+        handlers.onError({ code: data?.code, message: GENERIC_SERVER_ERROR_MESSAGE });
+      }
     }
   }
 }

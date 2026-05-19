@@ -61,7 +61,7 @@ async function bootstrap() {
   const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
   if (proxy) {
     // eslint-disable-next-line no-console
-    console.log(`[sidecar] 出站代理: ${proxy}（undici EnvHttpProxyAgent + NODE_USE_ENV_PROXY）`);
+    console.log(`[sidecar] 出站代理: ${proxy}（NODE_USE_ENV_PROXY + 可选 undici EnvHttpProxyAgent）`);
   } else {
     // eslint-disable-next-line no-console
     console.log(

@@ -1,13 +1,6 @@
 import { Body, Controller, Get, Headers, Patch, Post } from '@nestjs/common';
 import { ChatHistoryStore } from '../db/chat-history-store';
-
-function ok<T>(data: T) {
-  return { ok: true as const, code: 'SUCCESS', data };
-}
-
-function err(params: { code: string; message: string; retryable: boolean; nextAction?: string }) {
-  return { ok: false as const, ...params };
-}
+import { fail, ok } from '../http/api-response';
 
 function estimateBase64Bytes(dataUrlOrBase64: string): number {
   const base64 = dataUrlOrBase64.includes(',') ? dataUrlOrBase64.split(',')[1] || '' : dataUrlOrBase64;
@@ -25,7 +18,7 @@ export class AuthController {
     const username = String(body?.username ?? '').trim();
     const password = String(body?.password ?? '');
     if (!username || password.length < 6) {
-      return err({ code: 'INVALID_PARAMS', message: '用户名不能为空且密码至少6位', retryable: false });
+      return fail('REGISTER_INVALID', false);
     }
     try {
       const store = await this.storePromise;
@@ -34,9 +27,9 @@ export class AuthController {
       return ok({ user, token: session.token, expiresAt: session.expiresAt });
     } catch (e: any) {
       if (String(e?.message) === 'USER_EXISTS') {
-        return err({ code: 'USER_EXISTS', message: '用户名已存在', retryable: false });
+        return fail('USER_EXISTS', false);
       }
-      return err({ code: 'REGISTER_FAILED', message: '注册失败', retryable: true });
+      return fail('REGISTER_FAILED', true, { cause: e, logTag: 'auth/register' });
     }
   }
 
@@ -45,12 +38,12 @@ export class AuthController {
     const username = String(body?.username ?? '').trim();
     const password = String(body?.password ?? '');
     if (!username || !password) {
-      return err({ code: 'INVALID_PARAMS', message: '用户名和密码必填', retryable: false });
+      return fail('AUTH_FIELDS_REQUIRED', false);
     }
     const store = await this.storePromise;
     const user = await store.verifyUser(username, password);
     if (!user) {
-      return err({ code: 'INVALID_CREDENTIALS', message: '用户名或密码错误', retryable: false });
+      return fail('INVALID_CREDENTIALS', false);
     }
     const session = await store.createSession(user.id);
     return ok({ user, token: session.token, expiresAt: session.expiresAt });
@@ -60,12 +53,12 @@ export class AuthController {
   async me(@Headers('authorization') authHeader?: string) {
     const token = this.extractToken(authHeader);
     if (!token) {
-      return err({ code: 'UNAUTHORIZED', message: '未登录', retryable: false });
+      return fail('UNAUTHORIZED', false);
     }
     const store = await this.storePromise;
     const user = await store.getUserByToken(token);
     if (!user) {
-      return err({ code: 'UNAUTHORIZED', message: '登录态已失效', retryable: false });
+      return fail('UNAUTHORIZED', false);
     }
     return ok({ user });
   }
@@ -74,16 +67,16 @@ export class AuthController {
   async setTheme(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
     const token = this.extractToken(authHeader);
     if (!token) {
-      return err({ code: 'UNAUTHORIZED', message: '未登录', retryable: false });
+      return fail('UNAUTHORIZED', false);
     }
     const theme = String(body?.theme ?? '').trim();
     if (theme !== 'dark' && theme !== 'light') {
-      return err({ code: 'INVALID_PARAMS', message: 'theme must be dark or light', retryable: false });
+      return fail('INVALID_PARAMS', false);
     }
     const store = await this.storePromise;
     const user = await store.getUserByToken(token);
     if (!user) {
-      return err({ code: 'UNAUTHORIZED', message: '登录态已失效', retryable: false });
+      return fail('UNAUTHORIZED', false);
     }
     await store.updateUserTheme(user.id, theme);
     return ok({ theme });
@@ -93,18 +86,18 @@ export class AuthController {
   async setProfile(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
     const token = this.extractToken(authHeader);
     if (!token) {
-      return err({ code: 'UNAUTHORIZED', message: '未登录', retryable: false });
+      return fail('UNAUTHORIZED', false);
     }
     const store = await this.storePromise;
     const user = await store.getUserByToken(token);
     if (!user) {
-      return err({ code: 'UNAUTHORIZED', message: '登录态已失效', retryable: false });
+      return fail('UNAUTHORIZED', false);
     }
     const displayName = body?.displayName == null ? null : String(body.displayName).trim() || null;
     const ageRaw = body?.age;
     const age = ageRaw == null || String(ageRaw).trim() === '' ? null : Number(ageRaw);
     if (age != null && (!Number.isFinite(age) || age < 0 || age > 150)) {
-      return err({ code: 'INVALID_PARAMS', message: 'age 无效', retryable: false });
+      return fail('INVALID_PARAMS', false);
     }
     const gender = body?.gender == null ? null : String(body.gender).trim() || null;
     const occupation = body?.occupation == null ? null : String(body.occupation).trim() || null;
@@ -120,7 +113,7 @@ export class AuthController {
       const maxAvatarBytes = 1024 * 1024; // 1MB
       const avatarBytes = estimateBase64Bytes(avatarData);
       if (avatarBytes > maxAvatarBytes) {
-        return err({ code: 'INVALID_PARAMS', message: '图片过大（最大 1MB）', retryable: false });
+        return fail('AVATAR_TOO_LARGE', false);
       }
     }
     await store.updateUserProfile(user.id, { displayName, age, gender, occupation, needs, avatarData, customFields });

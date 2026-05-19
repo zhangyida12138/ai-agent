@@ -6,7 +6,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
-import { EnvHttpProxyAgent, setGlobalDispatcher } from 'undici';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const envFile = path.join(root, '.env');
@@ -21,7 +20,12 @@ console.log('HTTPS_PROXY', proxy || '(未设置)');
 
 if (proxy) {
   process.env.NODE_USE_ENV_PROXY = '1';
-  setGlobalDispatcher(new EnvHttpProxyAgent());
+  try {
+    const { EnvHttpProxyAgent, setGlobalDispatcher } = await import('undici');
+    setGlobalDispatcher(new EnvHttpProxyAgent());
+  } catch (e) {
+    console.warn('undici 代理未安装，仅使用 NODE_USE_ENV_PROXY:', e?.message || e);
+  }
 }
 
 if (!key) {

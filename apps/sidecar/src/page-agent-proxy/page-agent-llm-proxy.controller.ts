@@ -106,11 +106,11 @@ export class PageAgentLlmProxyController {
 
     const upstreams = resolvePageAgentUpstreams();
     if (upstreams.length === 0) {
+      console.error('[page-agent] 未配置任何可用上游（需 ZHIPU/GEMINI/DEEPSEEK 等 API Key）');
       res.status(503).json({
         error: {
-          message:
-            'Page Agent 未配置任何可用上游。请设置 ZHIPU_API_KEY、GEMINI_API_KEY 和/或 DEEPSEEK_API_KEY（或 PAGE_AGENT_UPSTREAM=dashscope + DASHSCOPE_API_KEY）。',
-          type: 'proxy_not_configured'
+          message: '服务器似乎出现了点问题，请稍后再试。',
+          type: 'service_unavailable'
         }
       });
       return;
@@ -160,9 +160,10 @@ export class PageAgentLlmProxyController {
       return;
     }
 
+    console.error('[page-agent] 所有上游均失败:', attemptErrors.join(' | '));
     res.status(502).json({
       error: {
-        message: attemptErrors.length > 0 ? attemptErrors.join('；') : '所有上游均不可用',
+        message: '服务器似乎出现了点问题，请稍后再试。',
         type: 'upstream_failover_exhausted'
       }
     });

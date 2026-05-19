@@ -159,6 +159,48 @@ pnpm --filter @ai-agent/sidecar start
 
 ## 5. 常见问题
 
+### 5.1 前端提示「接口未返回 JSON（HTTP 502）」且内容为 Nginx HTML
+
+说明 **Nginx 能收到请求，但反代目标 `127.0.0.1:3001` 无可用 Sidecar**（进程未启动、崩溃、或端口策略导致新实例未监听）。
+
+在服务器上依次排查：
+
+```bash
+# 1) 本机 Sidecar 是否存活
+curl -sS http://127.0.0.1:3001/health
+
+# 2) PM2 状态与最近日志
+pm2 describe ai-agent
+pm2 logs ai-agent --lines 80
+
+# 3) 3001 端口谁在监听
+sudo ss -lntp | grep 3001
+
+# 4) 从仓库根目录手动启动（看报错）
+cd /path/to/ai-agent
+export NODE_ENV=production
+node apps/sidecar/dist/main.js
+```
+
+常见原因与处理：
+
+| 现象                                                                 | 处理                                                                                                                                                             |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `curl :3001` 连接被拒绝                                              | `pm2 restart deploy/ecosystem.config.cjs --env production`；确认已 `pnpm build` 且存在 `apps/sidecar/dist/main.js`                                               |
+| 日志 `port 3001 already in use; skip duplicate startup`              | 旧进程占端口：`pm2 delete ai-agent` 后重新 `pm2 start deploy/ecosystem.config.cjs --env production`                                                              |
+| 部署后仍 502                                                         | 检查 Nginx `root` 与 `proxy_pass`：`root` 应为 `/var/www/ai-agent`，`/api/` → `http://127.0.0.1:3001/`                                                           |
+| 仅 HTTPS 站点 502                                                    | 确认 **443** 的 `server` 块里也有 `location /api/`，不要只配了 80                                                                                                |
+| 构建失败但静态已更新                                                 | 勿用 `pnpm install --prod` 再 build；应完整 `pnpm install` 后 `pnpm build`                                                                                       |
+| PM2 日志 `webidl.util.markAsUncloneable is not a function`（undici） | 多为 **undici 8 与 Node 版本不匹配**；拉取最新代码（undici 6 + 延迟加载）后 `pnpm install && pnpm build && pm2 restart ai-agent`；建议 Node **22+**（`node -v`） |
+
+经 Nginx 自检（本机）：
+
+```bash
+curl -sS -k https://127.0.0.1/api/health -H 'Host: notgonnalieplz.site'
+```
+
+应返回 JSON，而非 `<html>502 Bad Gateway</html>`。
+
 - 端口被占用：关闭占用 `3001` 或 `5173` 的进程后重启。
 - Sidecar 重复启动（`EADDRINUSE`）：
   - `SIDECAR_PORT_STRATEGY=lock`（默认）：若 `3001` 已占用则跳过重复实例启动，不再报错退出。

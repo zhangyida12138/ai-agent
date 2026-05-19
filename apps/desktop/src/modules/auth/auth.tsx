@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { clearAuthToken, login, me, register, setAuthToken, updateProfile } from '../../api';
+import { messageFromEnvelope } from '../../utils/user-facing-error';
 
 type User = {
   id: string;
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loginByPassword: async (username: string, password: string) => {
         const resp = await login({ username, password });
         if (!resp.ok) {
-          return resp.message || '登录失败';
+          return messageFromEnvelope(resp);
         }
         setAuthToken(resp.data.token);
         setUser(resp.data.user);
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       registerByPassword: async (username: string, password: string) => {
         const resp = await register({ username, password });
         if (!resp.ok) {
-          return resp.message || '注册失败';
+          return messageFromEnvelope(resp);
         }
         setAuthToken(resp.data.token);
         setUser(resp.data.user);

@@ -12,14 +12,7 @@ import {
 import type { Response } from 'express';
 import type { Request } from 'express';
 import { Req, Res } from '@nestjs/common';
-
-function ok<T>(data: T) {
-  return { ok: true as const, code: 'SUCCESS', data };
-}
-
-function err(params: { code: string; message: string; retryable: boolean; nextAction?: string }) {
-  return { ok: false as const, ...params };
-}
+import { fail, failFromUnknown, GENERIC_SERVER_ERROR_MESSAGE, logServerError, ok } from '../http/api-response';
 
 @Controller()
 export class ChatController {
@@ -51,7 +44,7 @@ export class ChatController {
     @Query('offset') offsetStr?: string
   ) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 20;
     const offset = offsetStr ? Math.max(0, Number(offsetStr)) : 0;
     return ok(await this.chatService.listConversations(limit, user.id, offset));
@@ -66,10 +59,10 @@ export class ChatController {
     @Query('beforeId') beforeId?: string
   ) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     const store = await ChatHistoryStore.create();
     const owns = await store.conversationBelongsToUser(conversationId, user.id);
-    if (!owns) return err({ code: 'FORBIDDEN', message: '无权访问该会话', retryable: false });
+    if (!owns) return fail('FORBIDDEN', false);
     const limit = limitStr ? Math.max(1, Number(limitStr)) : 50;
     const before =
       beforeCreatedAt && beforeId ? { createdAt: String(beforeCreatedAt).trim(), id: String(beforeId).trim() } : null;
@@ -82,10 +75,10 @@ export class ChatController {
     @Param('conversationId') conversationId: string
   ) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     const store = await ChatHistoryStore.create();
     const deleted = await store.deleteConversation(conversationId, user.id);
-    if (!deleted) return err({ code: 'NOT_FOUND', message: '会话不存在', retryable: false });
+    if (!deleted) return fail('CONVERSATION_NOT_FOUND', false);
     return ok({ conversationId });
   }
 
@@ -96,19 +89,19 @@ export class ChatController {
     @Body() body: any
   ) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     const title = String(body?.title ?? '').trim();
-    if (!title) return err({ code: 'INVALID_PARAMS', message: 'title is required', retryable: false });
+    if (!title) return fail('INVALID_PARAMS', false);
     const store = await ChatHistoryStore.create();
     const updated = await store.renameConversation(conversationId, user.id, title);
-    if (!updated) return err({ code: 'NOT_FOUND', message: '会话不存在', retryable: false });
+    if (!updated) return fail('CONVERSATION_NOT_FOUND', false);
     return ok({ conversationId, title });
   }
 
   @Post('/conversations/export')
   async exportConversations(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     const conversationIds = Array.isArray(body?.conversationIds)
       ? body.conversationIds.map((x: any) => String(x).trim()).filter(Boolean)
       : undefined;
@@ -120,31 +113,31 @@ export class ChatController {
   @Post('/conversations/import')
   async importConversations(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     try {
       const store = await ChatHistoryStore.create();
       const imported = await store.importConversations(user.id, body?.payload);
       return ok(imported);
     } catch (e: any) {
       if (String(e?.message) === 'INVALID_IMPORT_PAYLOAD') {
-        return err({ code: 'INVALID_PARAMS', message: '导入数据格式无效', retryable: false });
+        return fail('INVALID_IMPORT_PAYLOAD', false);
       }
-      return err({ code: 'IMPORT_FAILED', message: '导入失败', retryable: true });
+      return fail('IMPORT_FAILED', true, { cause: e, logTag: 'conversations/import' });
     }
   }
 
   @Post('/chat/send')
   async sendChat(@Headers('authorization') authHeader: string | undefined, @Body() body: any) {
     const user = await this.requireUser(authHeader);
-    if (!user) return err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false });
+    if (!user) return fail('UNAUTHORIZED', false);
     // Minimal validation for MVP
     const conversationId = String(body?.conversationId ?? '').trim();
     const userMessage = String(body?.userMessage ?? '').trim();
     if (!conversationId) {
-      return err({ code: 'INVALID_PARAMS', message: 'conversationId is required', retryable: false });
+      return fail('INVALID_PARAMS', false);
     }
     if (!userMessage) {
-      return err({ code: 'INVALID_PARAMS', message: 'userMessage is required', retryable: false });
+      return fail('INVALID_PARAMS', false);
     }
 
     const requestId = String(body?.requestId ?? randomUUID());
@@ -160,11 +153,7 @@ export class ChatController {
       const data = await this.chatService.sendMessage(req);
       return ok(data);
     } catch (e: any) {
-      const code = e?.code ? String(e.code) : 'INTERNAL_PROVIDER_ERROR';
-      const message = e?.message ? String(e.message) : 'Failed to generate reply';
-      const retryable = Boolean(e?.retryable ?? true);
-      const nextAction = e?.nextAction ? String(e.nextAction) : undefined;
-      return err({ code, message, retryable, nextAction });
+      return failFromUnknown('chat/send', e, 'INTERNAL_PROVIDER_ERROR', Boolean(e?.retryable ?? true));
     }
   }
 
@@ -177,15 +166,13 @@ export class ChatController {
   ) {
     const user = await this.requireUser(authHeader);
     if (!user) {
-      res.status(401).json(err({ code: 'UNAUTHORIZED', message: '请先登录', retryable: false }));
+      res.status(401).json(fail('UNAUTHORIZED', false));
       return;
     }
     const conversationId = String(body?.conversationId ?? '').trim();
     const userMessage = String(body?.userMessage ?? '').trim();
     if (!conversationId || !userMessage) {
-      res
-        .status(400)
-        .json(err({ code: 'INVALID_PARAMS', message: 'conversationId 和 userMessage 必填', retryable: false }));
+      res.status(400).json(fail('INVALID_PARAMS', false));
       return;
     }
     const requestId = String(body?.requestId ?? randomUUID());
@@ -229,9 +216,10 @@ export class ChatController {
         if (!clientClosed) res.end();
         return;
       }
+      logServerError('chat/stream', e);
       writeEvent('error', {
         code: e?.code ? String(e.code) : 'INTERNAL_PROVIDER_ERROR',
-        message: e?.message ? String(e.message) : 'Failed to stream reply',
+        message: GENERIC_SERVER_ERROR_MESSAGE,
         retryable: Boolean(e?.retryable ?? true)
       });
       if (!clientClosed) res.end();

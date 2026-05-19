@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { deleteKnowledgeDocument, getKnowledgeDocument, getKnowledgeStats, ingestText, listKnowledgeDocuments, updateKnowledgeDocument } from '../../api';
+import {
+  deleteKnowledgeDocument,
+  getKnowledgeDocument,
+  getKnowledgeStats,
+  ingestText,
+  listKnowledgeDocuments,
+  updateKnowledgeDocument
+} from '../../api';
 import { broadcastKnowledgeSync, subscribeKnowledgeSync } from './knowledge-sync';
 import { createUuid } from '../../utils/uuid';
+import { messageFromEnvelope } from '../../utils/user-facing-error';
 
 export type KnowledgeDocument = {
   id: string;
@@ -29,7 +37,7 @@ export function useKnowledgeModule() {
 
   async function refreshKnowledge() {
     const resp = await getKnowledgeStats();
-    if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) return setError(messageFromEnvelope(resp));
     setKnowledgeStats(resp.data as any);
   }
 
@@ -39,7 +47,7 @@ export function useKnowledgeModule() {
     const resp = await listKnowledgeDocuments();
     if (!resp.ok) {
       if (!silent) setKnowledgeLoading(false);
-      setError(`${resp.code}: ${resp.message}`);
+      setError(messageFromEnvelope(resp));
       return [];
     }
     const docs = resp.data?.documents || [];
@@ -83,7 +91,7 @@ export function useKnowledgeModule() {
     setIngesting(true);
     setError(null);
     const resp = await ingestText({ requestId: createUuid(), title, sourcePath: 'desktop', text });
-    if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) setError(messageFromEnvelope(resp));
     else {
       setKnowledgeTitle('');
       setKnowledgeText('');
@@ -96,7 +104,7 @@ export function useKnowledgeModule() {
 
   async function openDoc(docId: string) {
     const resp = await getKnowledgeDocument(docId);
-    if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) return setError(messageFromEnvelope(resp));
     setEditingDocId(docId);
     setEditingTitle(resp.data?.document?.title || '');
     setEditingText(resp.data?.document?.text || '');
@@ -106,7 +114,7 @@ export function useKnowledgeModule() {
     if (!editingDocId || !editingText.trim()) return;
     setSavingDoc(true);
     const resp = await updateKnowledgeDocument(editingDocId, { title: editingTitle.trim() || null, text: editingText });
-    if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) setError(messageFromEnvelope(resp));
     else {
       await refreshKnowledge();
       await refreshKnowledgeDocs(true);
@@ -120,7 +128,7 @@ export function useKnowledgeModule() {
     const deletingId = editingDocId;
     setSavingDoc(true);
     const resp = await deleteKnowledgeDocument(deletingId);
-    if (!resp.ok) setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) setError(messageFromEnvelope(resp));
     else {
       setEditingDocId('');
       setEditingTitle('');

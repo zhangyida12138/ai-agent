@@ -64,20 +64,43 @@ jobs:
           sudo corepack enable
           sudo corepack prepare pnpm@10.15.1 --activate
           sudo pnpm --version
-          sudo HUSKY=0 pnpm install --frozen-lockfile --prod=true --force
-          sudo HUSKY=0 pnpm  build
+          # 构建需要 devDependencies（tsc、vite 等），不可用 --prod
+          sudo HUSKY=0 pnpm install --frozen-lockfile --force
+          sudo HUSKY=0 pnpm build
 
           echo "[deploy] update frontend static files"
           sudo mkdir -p /var/www/ai-agent
           sudo rm -rf /var/www/ai-agent/*
           sudo cp -r apps/desktop/dist/* /var/www/ai-agent/
 
-          echo "[deploy] reload sidecar"
-          sudo pm2 restart ai-agent || pm2 start "pnpm --filter @ai-agent/sidecar start" --name ai-agent
-          pm2 save
+          echo "[deploy] restart sidecar (pm2)"
+          if ! sudo pm2 describe ai-agent >/dev/null 2>&1; then
+            sudo pm2 start deploy/ecosystem.config.cjs --env production
+          else
+            sudo pm2 restart deploy/ecosystem.config.cjs --env production --update-env
+          fi
+          sudo pm2 save
+
+          echo "[deploy] wait for sidecar health"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -sf http://127.0.0.1:3001/health >/dev/null; then
+              echo "[deploy] sidecar healthy on :3001"
+              break
+            fi
+            if [ "$i" -eq 10 ]; then
+              echo "[deploy] ERROR: sidecar not responding on :3001"
+              sudo pm2 logs ai-agent --lines 80 --nostream || true
+              exit 1
+            fi
+            sleep 2
+          done
 
           echo "[deploy] apply nginx config from repo"
-          sudo cp deploy/nginx/ai-agent.conf /etc/nginx/sites-available/ai-agent.conf
+          if [ -f deploy/nginx-notgonnalieplz.site.conf ]; then
+            sudo cp deploy/nginx-notgonnalieplz.site.conf /etc/nginx/sites-available/ai-agent.conf
+          else
+            sudo cp deploy/nginx/ai-agent.conf /etc/nginx/sites-available/ai-agent.conf
+          fi
           sudo ln -sf /etc/nginx/sites-available/ai-agent.conf /etc/nginx/sites-enabled/ai-agent.conf
           sudo nginx -t
           sudo systemctl reload nginx

@@ -10,6 +10,7 @@ import {
 } from '../../api';
 import { broadcastChatSync, subscribeChatSync } from './chat-sync';
 import { createUuid } from '../../utils/uuid';
+import { GENERIC_SERVER_ERROR_MESSAGE, messageFromEnvelope } from '../../utils/user-facing-error';
 
 export type Conversation = { id: string; title?: string | null; updatedAt: string };
 export type ChatMessage = {
@@ -247,7 +248,7 @@ export function useChatModule() {
     const poll = Boolean(options?.poll);
     const resp = await listConversations(20, 0);
     if (!resp.ok) {
-      setError(`${resp.code}: ${resp.message}`);
+      setError(messageFromEnvelope(resp));
       return [];
     }
     const raw = (resp.data as Conversation[]) || [];
@@ -270,7 +271,7 @@ export function useChatModule() {
     try {
       const resp = await listConversations(20, convNextOffsetRef.current);
       if (!resp.ok) {
-        setError(`${resp.code}: ${resp.message}`);
+        setError(messageFromEnvelope(resp));
         return;
       }
       const batch = (resp.data as Conversation[]) || [];
@@ -289,7 +290,7 @@ export function useChatModule() {
 
   async function refreshMessages(conversationId: string, options?: { poll?: boolean }) {
     const resp = await listMessages(conversationId, 50);
-    if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) return setError(messageFromEnvelope(resp));
     const data = resp.data as { messages: ChatMessage[]; total: number; hasOlder: boolean };
     const next = data.messages || [];
     if (options?.poll) {
@@ -311,7 +312,7 @@ export function useChatModule() {
     try {
       const resp = await listMessages(id, 50, { createdAt: oldest.createdAt, id: oldest.id });
       if (!resp.ok) {
-        setError(`${resp.code}: ${resp.message}`);
+        setError(messageFromEnvelope(resp));
         return;
       }
       const data = resp.data as { messages: ChatMessage[]; total: number; hasOlder: boolean };
@@ -446,7 +447,7 @@ export function useChatModule() {
           resetTypingState();
           userInterruptRef.current = false;
           setLoading(false);
-          setError(`${e.code || 'STREAM_ERROR'}: ${e.message || '流式响应失败'}`);
+          setError(e.message || GENERIC_SERVER_ERROR_MESSAGE);
         }
       },
       { signal: controller.signal }
@@ -490,7 +491,7 @@ export function useChatModule() {
 
   async function removeConversation(conversationId: string) {
     const resp = await deleteConversation(conversationId);
-    if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) return setError(messageFromEnvelope(resp));
     const list = await refreshConversations();
     if (list.length > 0) {
       setActiveId(list[0].id);
@@ -505,7 +506,7 @@ export function useChatModule() {
 
   async function renameConv(conversationId: string, title: string) {
     const resp = await renameConversation(conversationId, title);
-    if (!resp.ok) return setError(`${resp.code}: ${resp.message}`);
+    if (!resp.ok) return setError(messageFromEnvelope(resp));
     await refreshConversations();
     broadcastChatSync({ type: 'conversations-changed' });
     broadcastChatSync({ type: 'messages-changed', conversationId });
@@ -519,7 +520,7 @@ export function useChatModule() {
     }
     const resp = await exportConversations([targetId]);
     if (!resp.ok) {
-      setError(`${resp.code}: ${resp.message}`);
+      setError(messageFromEnvelope(resp));
       return null;
     }
     return JSON.stringify(resp.data, null, 2);
@@ -528,7 +529,7 @@ export function useChatModule() {
   async function exportAllConversationBundles(): Promise<string | null> {
     const resp = await exportConversations();
     if (!resp.ok) {
-      setError(`${resp.code}: ${resp.message}`);
+      setError(messageFromEnvelope(resp));
       return null;
     }
     return JSON.stringify(resp.data, null, 2);
@@ -551,7 +552,7 @@ export function useChatModule() {
     }
     const resp = await importConversations(bundle);
     if (!resp.ok) {
-      return { ok: false, message: resp.message || '导入失败' };
+      return { ok: false, message: messageFromEnvelope(resp) };
     }
     await refreshConversations();
     broadcastChatSync({ type: 'conversations-changed' });
