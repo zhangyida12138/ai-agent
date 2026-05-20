@@ -1,4 +1,4 @@
-export type LlmProviderId = 'zhipu' | 'deepseek' | 'gemini';
+export type LlmProviderId = 'zhipu' | 'qwen' | 'deepseek' | 'gemini';
 
 export type ProviderProfile = {
   id: LlmProviderId;
@@ -8,15 +8,23 @@ export type ProviderProfile = {
   embeddingModel: string;
 };
 
-/** 故障转移时，在 primary/fallback 之后按此顺序尝试其余已配置的提供商 */
-const FAILOVER_CHAIN: LlmProviderId[] = ['zhipu', 'gemini', 'deepseek'];
+/** 默认故障转移：智谱 → 千问 → DeepSeek → Gemini */
+export const DEFAULT_AI_FAILOVER_ORDER: LlmProviderId[] = ['zhipu', 'qwen', 'deepseek', 'gemini'];
 
 function normalizeProviderId(raw: string): LlmProviderId | null {
   const v = raw.toLowerCase().trim();
   if (v === 'zhipu' || v === 'zhipuai' || v === 'glm' || v.startsWith('zhipu-') || v === 'bigmodel') return 'zhipu';
+  if (v === 'qwen' || v === 'dashscope' || v === 'tongyi' || v === 'aliyun' || v.startsWith('qwen-')) return 'qwen';
   if (v === 'deepseek' || v.startsWith('deepseek-')) return 'deepseek';
   if (v === 'gemini' || v === 'google' || v.startsWith('gemini')) return 'gemini';
   return null;
+}
+
+function parseFailoverOrder(raw: string): LlmProviderId[] {
+  return raw
+    .split(',')
+    .map((s) => normalizeProviderId(s.trim()))
+    .filter((id): id is LlmProviderId => id !== null);
 }
 
 export function getProviderProfile(id: LlmProviderId): ProviderProfile | null {
@@ -29,6 +37,21 @@ export function getProviderProfile(id: LlmProviderId): ProviderProfile | null {
       baseUrl: (process.env.ZHIPU_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4').replace(/\/$/, ''),
       chatModel: process.env.ZHIPU_MODEL || 'glm-4-flash',
       embeddingModel: process.env.ZHIPU_EMBEDDING_MODEL || 'embedding-3'
+    };
+  }
+
+  if (id === 'qwen') {
+    const apiKey = (process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY)?.trim();
+    if (!apiKey) return null;
+    return {
+      id: 'qwen',
+      apiKey,
+      baseUrl: (process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1').replace(
+        /\/$/,
+        ''
+      ),
+      chatModel: process.env.DASHSCOPE_MODEL || process.env.QWEN_MODEL || 'qwen-plus',
+      embeddingModel: process.env.DASHSCOPE_EMBEDDING_MODEL || process.env.QWEN_EMBEDDING_MODEL || 'text-embedding-v3'
     };
   }
 
@@ -57,14 +80,14 @@ export function getProviderProfile(id: LlmProviderId): ProviderProfile | null {
 }
 
 /**
- * 默认智谱优先；失败时按 AI_FALLBACK_PROVIDER（默认 deepseek）及链上其余已配置提供商切换。
+ * 解析主聊天/RAG 故障转移顺序。默认智谱 → 千问 → DeepSeek → Gemini。
+ * 可用 `AI_FAILOVER_ORDER` 覆盖（逗号分隔，如 `zhipu,qwen,deepseek,gemini`）。
  */
 export function resolveFailoverOrder(preferredKind?: string | null): LlmProviderId[] {
-  const primary =
-    normalizeProviderId(process.env.AI_PRIMARY_PROVIDER || process.env.AI_PROVIDER_KIND || 'zhipu') ?? 'zhipu';
-  const fallback = normalizeProviderId(process.env.AI_FALLBACK_PROVIDER || 'deepseek') ?? 'deepseek';
-  const preferred = preferredKind ? normalizeProviderId(preferredKind) : null;
+  const raw = process.env.AI_FAILOVER_ORDER?.trim();
+  const base = raw ? parseFailoverOrder(raw) : [...DEFAULT_AI_FAILOVER_ORDER];
 
+  const preferred = preferredKind ? normalizeProviderId(preferredKind) : null;
   const ordered: LlmProviderId[] = [];
   const push = (id: LlmProviderId | null) => {
     if (!id) return;
@@ -72,9 +95,7 @@ export function resolveFailoverOrder(preferredKind?: string | null): LlmProvider
   };
 
   push(preferred);
-  push(primary);
-  push(fallback);
-  for (const id of FAILOVER_CHAIN) push(id);
+  for (const id of base) push(id);
 
   return ordered.filter((id) => getProviderProfile(id) !== null);
 }

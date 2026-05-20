@@ -7,7 +7,7 @@ import { createClientAbortSignal, isClientAbortError } from '../common/client-ab
 import {
   buildUpstreamRequestBody,
   resolvePageAgentUpstreams,
-  shouldFailoverPageAgentHttp,
+  shouldFailoverPageAgentBody,
   type PageAgentUpstream
 } from './page-agent-upstream';
 
@@ -49,7 +49,7 @@ export class PageAgentLlmProxyController {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${upstream.apiKey}`
         },
-        body: buildUpstreamRequestBody(body, upstream.defaultModel),
+        body: buildUpstreamRequestBody(body, upstream),
         signal: clientSignal
       });
     } catch (err) {
@@ -59,9 +59,18 @@ export class PageAgentLlmProxyController {
 
     if (clientSignal.aborted) return 'cancelled';
 
-    if (!upstreamResp.ok && shouldFailoverPageAgentHttp(upstreamResp.status)) {
-      await upstreamResp.text().catch(() => '');
-      return 'failover';
+    if (!upstreamResp.ok) {
+      const errBody = await upstreamResp.text().catch(() => '');
+      if (shouldFailoverPageAgentBody(upstreamResp.status, errBody)) {
+        console.error(`[page-agent] ${upstream.id} HTTP ${upstreamResp.status}:`, errBody.slice(0, 300));
+        return 'failover';
+      }
+      res.status(upstreamResp.status);
+      if (upstreamResp.headers.get('content-type')) {
+        res.setHeader('Content-Type', upstreamResp.headers.get('content-type')!);
+      }
+      res.send(errBody);
+      return 'ok';
     }
 
     const ct = upstreamResp.headers.get('content-type');
@@ -88,7 +97,7 @@ export class PageAgentLlmProxyController {
 
   /**
    * Page Agent OpenAI 兼容入口：浏览器只带用户登录态，模型密钥仅服务端读取。
-   * 默认按智谱 → Gemini（OpenAI 兼容）→ DeepSeek 故障转移；可用 `PAGE_AGENT_FAILOVER_ORDER` 覆盖。
+   * 默认按千问 → 智谱 → DeepSeek → Gemini 故障转移；可用 `PAGE_AGENT_FAILOVER_ORDER` 覆盖。
    * 客户端断开或 Abort 后不再切换上游。
    */
   @Post('/page-agent/llm/v1/chat/completions')
@@ -128,6 +137,9 @@ export class PageAgentLlmProxyController {
       if (i > 0) {
         // eslint-disable-next-line no-console
         console.warn(`[page-agent] 正在切换备用上游 ${upstream.id}…`);
+      } else if (process.env.NODE_ENV !== 'production' || process.env.PAGE_AGENT_LOG_MODEL === '1') {
+        // eslint-disable-next-line no-console
+        console.log(`[page-agent] upstream=${upstream.id} model=${upstream.pageAgentModel}`);
       }
 
       try {

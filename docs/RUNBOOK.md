@@ -115,16 +115,16 @@ server {
 
 在仓库根目录复制 `.env.example` 为 `.env` / `.env.production`，至少配置：
 
-| 变量                                 | 说明                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| `ZHIPU_API_KEY`                      | 主路（国内推荐，OpenAI 兼容接口）                                            |
-| `DEEPSEEK_API_KEY`                   | 备用路                                                                       |
-| `GEMINI_API_KEY` 或 `GOOGLE_API_KEY` | 备用路（访问 Google 常需 `HTTPS_PROXY`）                                     |
-| `AI_PRIMARY_PROVIDER`                | 默认 `zhipu`（智谱）                                                         |
-| `AI_FALLBACK_PROVIDER`               | 默认 `deepseek`                                                              |
-| `ZHIPU_API_KEY`                      | 智谱 Open API Key（[开放平台](https://open.bigmodel.cn/usercenter/apikeys)） |
-| `ZHIPU_MODEL`                        | 默认 `glm-4-flash`                                                           |
-| `DEEPSEEK_MODEL` / `GEMINI_MODEL`    | 可选，覆盖默认模型名                                                         |
+| 变量                                 | 说明                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| `AI_FAILOVER_ORDER`                  | 默认 `zhipu,qwen,deepseek,gemini`（智谱 → 千问 → DeepSeek → Gemini） |
+| `ZHIPU_API_KEY`                      | 智谱（[开放平台](https://open.bigmodel.cn/usercenter/apikeys)）      |
+| `DASHSCOPE_API_KEY`                  | 千问 / 通义（[DashScope](https://dashscope.console.aliyun.com/)）    |
+| `DEEPSEEK_API_KEY`                   | DeepSeek                                                             |
+| `GEMINI_API_KEY` 或 `GOOGLE_API_KEY` | Gemini（国内常需 `HTTPS_PROXY`）                                     |
+| `DASHSCOPE_MODEL`                    | 默认 `qwen-plus`                                                     |
+| `PAGE_AGENT_MODEL`                   | Page Agent 默认 `qwen-plus`（建议 `qwen-max` 作大模型）              |
+| `PAGE_AGENT_FAILOVER_ORDER`          | 默认 `qwen,zhipu,deepseek,gemini`（Page Agent 千问优先）             |
 
 推荐注入方式（任选其一）：
 
@@ -159,7 +159,51 @@ pnpm --filter @ai-agent/sidecar start
 
 ## 5. 常见问题
 
-### 5.1 前端提示「接口未返回 JSON（HTTP 502）」且内容为 Nginx HTML
+### 5.1 浏览器 DevTools 出现 `net::ERR_CONNECTION_CLOSED`
+
+表示 **TCP/TLS 连接在响应完成前被对端关闭**，常见原因：
+
+| 原因                                       | 处理                                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Sidecar 未运行或崩溃                       | `curl http://127.0.0.1:3001/health`、`pm2 logs ai-agent`                                                           |
+| Nginx 对 `/api` 误设 `Connection: upgrade` | 使用仓库最新 `deploy/nginx-notgonnalieplz.site.conf`（`proxy_set_header Connection ""`，且 `proxy_buffering off`） |
+| SSE 被 Nginx 缓冲/超时                     | 确认 `proxy_read_timeout` ≥ 300s、`proxy_buffering off`                                                            |
+| 证书/HTTPS 配置错误                        | `sudo nginx -t`，检查 443 证书路径                                                                                 |
+
+聊天流式接口为 `POST /api/chat/stream`（SSE）。更新 Nginx 后：
+
+```bash
+sudo cp deploy/nginx-notgonnalieplz.site.conf /etc/nginx/sites-available/ai-agent.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 5.2 日志 `[page-agent] qwen HTTP 401` / `invalid_api_key`
+
+DashScope 认为 **API Key 无效**（填错、已删除、区域与 Base URL 不一致、或 Key 曾泄露后已轮换）。
+
+1. 在 [百炼 API Key](https://bailian.console.aliyun.com/?tab=model#/api-key) 新建 Key，写入根目录 `.env` 的 `DASHSCOPE_API_KEY=`（不要有多余空格或引号）。
+2. 核对区域与 `DASHSCOPE_BASE_URL`：
+   - 国内：`https://dashscope.aliyuncs.com/compatible-mode/v1`
+   - 国际：`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
+3. 自检：`pnpm --filter @ai-agent/sidecar run check:qwen`
+4. 重启 Sidecar。401 时 Page Agent 会自动切智谱等备用上游；修好 Key 后千问才会作为主路。
+
+### 5.3 Page Agent 报错 `No tool_call` / `Unknown action "Action name"`
+
+Page Agent 依赖模型的 **OpenAI 兼容 tool calling**。`glm-4-flash` 等轻量模型常返回占位文本或畸形 JSON，导致：
+
+- `No tool_call and the message content does not contain valid JSON`
+- `InvokeError: Unknown action "Action name"`
+
+处理：
+
+1. 在 `.env` / `.env.production` 设置 `DASHSCOPE_API_KEY`，并配置 `PAGE_AGENT_MODEL=qwen-plus`（大模型可用 `qwen-max`）。
+2. 前端构建 `VITE_PAGE_AGENT_MODEL=qwen-plus`（实际模型以 Sidecar 代理为准）。
+3. 主聊天故障转移顺序：`AI_FAILOVER_ORDER=zhipu,qwen,deepseek,gemini`。
+4. 重新 `pnpm build` 并 `pm2 restart ai-agent`，浏览器硬刷新。
+5. 仍失败时把 `PAGE_AGENT_FAILOVER_ORDER` 改为 `gemini,zhipu,deepseek`（需 Gemini 可达）。
+
+### 5.4 前端提示「接口未返回 JSON（HTTP 502）」且内容为 Nginx HTML
 
 说明 **Nginx 能收到请求，但反代目标 `127.0.0.1:3001` 无可用 Sidecar**（进程未启动、崩溃、或端口策略导致新实例未监听）。
 

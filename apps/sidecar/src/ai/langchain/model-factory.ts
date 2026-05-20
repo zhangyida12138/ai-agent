@@ -46,7 +46,7 @@ function createOpenAiCompatibleEmbeddings(profile: ProviderProfile, timeoutMs: n
 export function createChatModel(profile: ProviderProfile, generation?: GenerationOpts): BaseChatModel {
   const timeoutMs = Number(process.env.AI_PROVIDER_TIMEOUT_MS || 90_000);
 
-  if (profile.id === 'zhipu' || profile.id === 'deepseek') {
+  if (profile.id === 'zhipu' || profile.id === 'qwen' || profile.id === 'deepseek') {
     return createOpenAiCompatibleChat(profile, generation, timeoutMs);
   }
 
@@ -64,7 +64,7 @@ export function createChatModel(profile: ProviderProfile, generation?: Generatio
 export function createEmbeddingsModel(profile: ProviderProfile): Embeddings {
   const timeoutMs = Number(process.env.AI_PROVIDER_TIMEOUT_MS || 90_000);
 
-  if (profile.id === 'zhipu' || profile.id === 'deepseek') {
+  if (profile.id === 'zhipu' || profile.id === 'qwen' || profile.id === 'deepseek') {
     return createOpenAiCompatibleEmbeddings(profile, timeoutMs);
   }
 

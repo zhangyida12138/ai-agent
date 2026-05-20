@@ -30,8 +30,8 @@ importers:
         specifier: ^1.9.0
         version: 1.12.0
       page-agent:
-        specifier: ^1.8.1
-        version: 1.8.1(zod@4.4.3)
+        specifier: ^1.8.2
+        version: 1.8.2(zod@4.4.3)
       pdfjs-dist:
         specifier: ^5.6.205
         version: 5.6.205
@@ -525,21 +525,21 @@ packages:
   '@oxc-project/types@0.122.0':
     resolution: {integrity: sha512-oLAl5kBpV4w69UtFZ9xqcmTi+GENWOcPF7FCrczTiBbmC0ibXxCwyvZGbO39rCVEuLGAZM84DH0pUIyyv/YJzA==}
 
-  '@page-agent/core@1.8.1':
-    resolution: {integrity: sha512-ZwsJF+L1JT5k6FJR/5mJAsXce8Z7X9usj6NQmh9jnB+c1mUwCBCGeSa5G9AcdBVp5JNHWGgDU3J3QhreCwNVNA==}
+  '@page-agent/core@1.8.2':
+    resolution: {integrity: sha512-Yf2IJShdwP0tP5ejw3MImo2nBEqTLQuxgB/RtYREwQvDBya8aZuOLciTgC1ZFex8jeuViAXgnWQ54CfZ3Rbneg==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@page-agent/llms@1.8.1':
-    resolution: {integrity: sha512-gSACYJBKJSp6doetwZyhDFPUwg2Vifbo3I99iEoVT4mTtT7QXFThej+5H++afhN63BCXR4B56+HFfmgRIV0+Zg==}
+  '@page-agent/llms@1.8.2':
+    resolution: {integrity: sha512-KQUdo0GS9E+w8mw7K+wE+IMnkKqP0ZEOROM1z5G3UQUQrpdO5cCRwN0/BQdr0AIorJbLCCbkAcsWi67PFIcdKA==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@page-agent/page-controller@1.8.1':
-    resolution: {integrity: sha512-0GDa+54i/Oc+AJ+Sdbz7MTjW8G3ctFhouRhXUjyB0Hkh29hB7Zw8tGtEqwpWHMopPtqu/icfAApTadAq+4psmg==}
+  '@page-agent/page-controller@1.8.2':
+    resolution: {integrity: sha512-Fms9UJl9YHga+0Xcp2MEl4FPXTa1HRwUKo+q4ruS1HfJqRH4UuaVtL0NvH7GMiXAw3eO2BMOTAz1+e+WOIxyig==}
 
-  '@page-agent/ui@1.8.1':
-    resolution: {integrity: sha512-xfRKq3wPV6Zzm+4sJ5R/BnTibiZxY34QzO4iL+QQJyLsmi2DbLH4eOz101l2YhgXQukvLxs3p+tSF/zNQyshEw==}
+  '@page-agent/ui@1.8.2':
+    resolution: {integrity: sha512-cofvbsk1K/xzo33QDh20ipl8WY7Eow9CS5I81JHI9ezjBwB8RgNYV0yUmCaltJpqZl95HPpTNBpTZR+xV8m+kQ==}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.11':
     resolution: {integrity: sha512-SJ+/g+xNnOh6NqYxD0V3uVN4W3VfnrGsC9/hoglicgTNfABFG9JjISvkkU0dNY84MNHLWyOgxP9v9Y9pX4S7+A==}
@@ -1534,8 +1534,8 @@ packages:
     resolution: {integrity: sha512-rhIwUycgwwKcP9yTOOFK/AKsAopjjCakVqLHePO3CC6Mir1Z99xT+R63jZxAT5lFZLa2inS5h+ZS2GvR99/FBg==}
     engines: {node: '>=8'}
 
-  page-agent@1.8.1:
-    resolution: {integrity: sha512-R4H2l+iY/zmDe8FM6FENFP7eR2Nwy9KZNQ+ytElqa5X3W2Z5vqRlxTIhQGgLkUhbuJ6lR+uMm3BTIkg0g1JYlw==}
+  page-agent@1.8.2:
+    resolution: {integrity: sha512-4lNMtx9swkeut+pdtoiqIDtVKjLcaFFMxNykwV2w2uBrTcPWJpJ5wtkDigbGQybn6mIH6xslmZ8Eb+T0CA+8ug==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
@@ -2347,23 +2347,23 @@ snapshots:
 
   '@oxc-project/types@0.122.0': {}
 
-  '@page-agent/core@1.8.1(zod@4.4.3)':
+  '@page-agent/core@1.8.2(zod@4.4.3)':
     dependencies:
-      '@page-agent/llms': 1.8.1(zod@4.4.3)
-      '@page-agent/page-controller': 1.8.1
+      '@page-agent/llms': 1.8.2(zod@4.4.3)
+      '@page-agent/page-controller': 1.8.2
       chalk: 5.6.2
       zod: 4.4.3
 
-  '@page-agent/llms@1.8.1(zod@4.4.3)':
+  '@page-agent/llms@1.8.2(zod@4.4.3)':
     dependencies:
       chalk: 5.6.2
       zod: 4.4.3
 
-  '@page-agent/page-controller@1.8.1':
+  '@page-agent/page-controller@1.8.2':
     dependencies:
       ai-motion: 0.4.8
 
-  '@page-agent/ui@1.8.1': {}
+  '@page-agent/ui@1.8.2': {}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.11':
     optional: true
@@ -3245,12 +3245,12 @@ snapshots:
     dependencies:
       p-finally: 1.0.0
 
-  page-agent@1.8.1(zod@4.4.3):
+  page-agent@1.8.2(zod@4.4.3):
     dependencies:
-      '@page-agent/core': 1.8.1(zod@4.4.3)
-      '@page-agent/llms': 1.8.1(zod@4.4.3)
-      '@page-agent/page-controller': 1.8.1
-      '@page-agent/ui': 1.8.1
+      '@page-agent/core': 1.8.2(zod@4.4.3)
+      '@page-agent/llms': 1.8.2(zod@4.4.3)
+      '@page-agent/page-controller': 1.8.2
+      '@page-agent/ui': 1.8.2
       chalk: 5.6.2
       zod: 4.4.3
 

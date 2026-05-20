@@ -183,6 +183,7 @@ export class ChatController {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
     let clientClosed = false;
     const clientAbort = new AbortController();
@@ -196,6 +197,8 @@ export class ChatController {
       if (clientClosed) return;
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
+      const flush = (res as { flush?: () => void }).flush;
+      flush?.call(res);
     };
     const convStreamSignal = takeConversationStreamControl(conversationId);
     const streamSignal = mergeAbortSignals([clientAbort.signal, convStreamSignal]);

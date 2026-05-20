@@ -15,7 +15,8 @@ export async function withProviderFailover<T>(
   if (order.length === 0) {
     throw {
       code: ErrorCodes.PROVIDER_NOT_CONFIGURED,
-      message: '未配置可用的 AI 提供商。请在根目录 .env 中设置 ZHIPU_API_KEY、DEEPSEEK_API_KEY 和/或 GEMINI_API_KEY。',
+      message:
+        '未配置可用的 AI 提供商。请在根目录 .env 中设置 ZHIPU_API_KEY、DASHSCOPE_API_KEY（千问）、DEEPSEEK_API_KEY 和/或 GEMINI_API_KEY。',
       retryable: false
     } satisfies ProviderError;
   }
